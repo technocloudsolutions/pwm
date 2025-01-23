@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userDoc != null && userDoc.data.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isNotSuspended() {
+      let userDoc = getUserDoc();
+      return isAdmin() || (userDoc != null && !userDoc.data.isSuspended);
+    }
+
+    function isSubscriptionValid() {
+      let userDoc = getUserDoc();
+      return isAdmin() || (userDoc != null && (
+        (userDoc.data.subscription == 'free' && !userDoc.data.isSuspended) ||
+        (!userDoc.data.isSuspended && 
+          (userDoc.data.subscriptionExpiresAt == null || 
+           request.time < timestamp.date(userDoc.data.subscriptionExpiresAt)))
+      ));
+    }
+
+    function hasValidAccess() {
+      return isSignedIn() && (isAdmin() || (isNotSuspended() && isSubscriptionValid()));
+    }
+
+    function hasSubscription(tier) {
+      let userDoc = getUserDoc();
+      return isAdmin() || (userDoc != null && userDoc.data.subscription == tier);
+    }
+
+    function hasPremiumOrBusiness() {
+      let userDoc = getUserDoc();
+      return isAdmin() || (userDoc != null && 
+        (userDoc.data.subscription == 'premium' || userDoc.data.subscription == 'business'));
+    }
+
+    function canAccessPremiumFeatures() {
+      return isSignedIn() && (isAdmin() || (hasValidAccess() && hasPremiumOrBusiness()));
+    }
+
+    function canAccessBusinessFeatures() {
+      return isSignedIn() && (isAdmin() || (hasValidAccess() && hasSubscription('business')));
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+        request.resource.data.keys().hasAll(['email', 'subscription', 'createdAt']) && 
+        request.resource.data.subscription == 'free';
+      allow update: if isSignedIn() && (
+        (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['email', 'displayName', 'photoURL'])) || 
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['role', 'subscription', 'isSuspended', 'subscriptionExpiresAt']))
+      );
+      allow delete: if isAdmin();
+
+      // Devices subcollection
+      match /devices/{deviceId} {
+        allow read: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess()));
+        allow create: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess())) && 
+          request.resource.data.keys().hasAll(['deviceName', 'lastActive', 'deviceId']);
+        allow update: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess())) && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActive']);
+        allow delete: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess()));
+      }
+    }
+
+    // Passwords collection
+    match /passwords/{passwordId} {
+      allow read: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow create: if hasValidAccess() && 
+        request.resource.data.userId == request.auth.uid && 
+        request.resource.data.keys().hasAll(['title', 'username', 'password', 'userId', 'createdAt']);
+      allow update: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+    }
+
+    // Personal Info collection
+    match /personal_info/{infoId} {
+      allow read: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow create: if hasValidAccess() && 
+        request.resource.data.userId == request.auth.uid && 
+        request.resource.data.keys().hasAll(['title', 'data', 'userId', 'createdAt']);
+      allow update: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+    }
+
+    // Activity Logs collection
+    match /activity_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if hasValidAccess() && 
+        request.resource.data.keys().hasAll(['userId', 'action', 'timestamp', 'details']);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Shared Passwords collection
+    match /shared_passwords/{shareId} {
+      allow read: if isAdmin() || (canAccessPremiumFeatures() && 
+        (resource.data.sharedBy == request.auth.uid || 
+         resource.data.sharedWith == request.auth.uid));
+      allow create: if canAccessPremiumFeatures() && 
+        request.resource.data.sharedBy == request.auth.uid && 
+        request.resource.data.keys().hasAll(['passwordId', 'sharedBy', 'sharedWith', 'createdAt']);
+      allow update: if isAdmin() || (canAccessPremiumFeatures() && resource.data.sharedBy == request.auth.uid);
+      allow delete: if isAdmin() || (canAccessPremiumFeatures() && resource.data.sharedBy == request.auth.uid);
+    }
+
+    // Teams collection
+    match /teams/{teamId} {
+      allow read: if isAdmin() || (canAccessBusinessFeatures() && 
+        resource.data.members[request.auth.uid] != null);
+      allow create: if canAccessBusinessFeatures() && 
+        request.resource.data.keys().hasAll(['name', 'ownerId', 'members', 'createdAt']) && 
+        request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || (canAccessBusinessFeatures() && 
+        resource.data.members[request.auth.uid].role == 'admin');
+      allow delete: if isAdmin() || (canAccessBusinessFeatures() && 
+        resource.data.ownerId == request.auth.uid);
+
+      // Team Members subcollection
+      match /members/{memberId} {
+        allow read: if isAdmin() || (canAccessBusinessFeatures() && 
+          (resource.data.userId == request.auth.uid || 
+           get(/databases/$(database)/documents/teams/$(teamId)).data.members[request.auth.uid] != null));
+        allow write: if isAdmin() || (canAccessBusinessFeatures() && 
+          get(/databases/$(database)/documents/teams/$(teamId)).data.members[request.auth.uid].role == 'admin');
+      }
+    }
+  }
+}

@@ -3,7 +3,16 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -32,7 +41,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState({
     title: "",
@@ -40,20 +49,22 @@ export default function DashboardPage() {
     password: "",
     url: "",
   });
-  const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>(
-    {}
-  );
+  const [showPasswords, setShowPasswords] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
-  const [passwordOptions, setPasswordOptions] = useState<PasswordGeneratorOptions>({
-    length: 16,
-    includeUppercase: true,
-    includeLowercase: true,
-    includeNumbers: true,
-    includeSymbols: true,
-  });
+  const [passwordOptions, setPasswordOptions] =
+    useState<PasswordGeneratorOptions>({
+      length: 16,
+      includeUppercase: true,
+      includeLowercase: true,
+      includeNumbers: true,
+      includeSymbols: true,
+    });
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && !checkIsSubscriptionExpired(user.uid)) {
       loadPasswords();
     }
   }, [user]);
@@ -82,7 +93,6 @@ export default function DashboardPage() {
       });
       setPasswords(loadedPasswords);
     } catch (error: any) {
-      console.error("Error loading passwords:", error);
       setError(error.message);
       toast({
         title: "Error",
@@ -94,6 +104,37 @@ export default function DashboardPage() {
     }
   };
 
+  const checkIsSubscriptionExpired = async (userId: string) => {
+    setLoading(true);
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      if (userData?.lastPayment?.date) {
+        const lastPaymentDate = new Date(userData.lastPayment.date.toDate());
+        const currentDate = new Date();
+        const daysSinceLastPayment = Math.floor(
+          (currentDate.getTime() - lastPaymentDate.getTime()) /
+            (1000 * 3600 * 24)
+        );
+        if (daysSinceLastPayment > 30) {
+          toast({
+            title: "Subscription Expired",
+            description:
+              "Your subscription has expired. Please renew your plan to continue using the service.",
+            variant: "destructive",
+          });
+          setIsSubscriptionExpired(true);
+          setLoading(false);
+          return true;
+        }
+      }
+    }
+
+    setIsSubscriptionExpired(false);
+    setLoading(false);
+    return false;
+  };
+
   const handleAddPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -103,7 +144,8 @@ export default function DashboardPage() {
       if (!canAdd) {
         toast({
           title: "Limit Reached",
-          description: "You've reached your password limit. Please upgrade your plan to add more passwords.",
+          description:
+            "You've reached your password limit. Please upgrade your plan to add more passwords.",
           variant: "destructive",
         });
         return;
@@ -191,7 +233,10 @@ export default function DashboardPage() {
       )}
 
       {showAddForm && (
-        <form onSubmit={handleAddPassword} className="space-y-4 p-4 border rounded-lg">
+        <form
+          onSubmit={handleAddPassword}
+          className="space-y-4 p-4 border rounded-lg"
+        >
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Title</label>
@@ -246,7 +291,9 @@ export default function DashboardPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setShowPasswordGenerator(!showPasswordGenerator)}
+                  onClick={() =>
+                    setShowPasswordGenerator(!showPasswordGenerator)
+                  }
                   title="Password generator settings"
                 >
                   <Settings className="h-4 w-4" />
@@ -353,7 +400,8 @@ export default function DashboardPage() {
                   </label>
                 </div>
                 <div className="text-sm text-muted-foreground mt-2">
-                  Tip: A strong password should be at least 12 characters long and include a mix of different character types.
+                  Tip: A strong password should be at least 12 characters long
+                  and include a mix of different character types.
                 </div>
               </div>
             </div>
@@ -383,9 +431,11 @@ export default function DashboardPage() {
           >
             <div className="space-y-1">
               <h3 className="font-medium">{password.title}</h3>
-              <p className="text-sm text-muted-foreground">{password.username}</p>
+              <p className="text-sm text-muted-foreground">
+                {password.username}
+              </p>
               <p className="text-sm font-mono">
-                {showPasswords[password.id] ? password.password : '••••••••'}
+                {showPasswords[password.id] ? password.password : "••••••••"}
               </p>
               {password.url && (
                 <a
@@ -403,7 +453,9 @@ export default function DashboardPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => togglePasswordVisibility(password.id)}
-                title={showPasswords[password.id] ? "Hide password" : "Show password"}
+                title={
+                  showPasswords[password.id] ? "Hide password" : "Show password"
+                }
               >
                 {showPasswords[password.id] ? (
                   <EyeOff className="h-4 w-4" />
@@ -430,12 +482,18 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
-        {passwords.length === 0 && !loading && (
+        {!isSubscriptionExpired && passwords.length === 0 && !loading && (
           <div className="text-center py-8 text-muted-foreground">
             No passwords saved yet. Click "Add Password" to get started.
+          </div>
+        )}
+        {isSubscriptionExpired && !loading && (
+          <div className="text-center py-8 text-muted-foreground">
+            Your subscription has expired. Please renew your plan to continue
+            using the service.
           </div>
         )}
       </div>
     </div>
   );
-} 
+}

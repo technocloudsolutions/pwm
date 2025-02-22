@@ -32,11 +32,13 @@ export function PasswordSharing() {
 
   useEffect(() => {
     const fetchPasswords = async () => {
+      setLoading(true);
       const passwords = await loadPasswords(user?.uid);
+      await loadSharedPasswords();
       setPasswords(passwords);
+      setLoading(false);
     };
 
-    loadSharedPasswords();
     fetchPasswords();
   }, [user]);
 
@@ -44,7 +46,6 @@ export function PasswordSharing() {
     if (!user) return;
 
     try {
-      setLoading(true);
       const sharedWithMePasswords = await getSharedPasswords(user.uid);
       setSharedWithMe(sharedWithMePasswords);
 
@@ -57,8 +58,6 @@ export function PasswordSharing() {
         description: error.message || 'Failed to load shared passwords',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -259,7 +258,7 @@ export function PasswordSharing() {
                     <Input
                       type="datetime-local"
                       value={formatDateForInput(share.expiresAt)}
-                      onChange={(e) => handleUpdateShare(share.id, { expiresAt: e.target.value ? new Date(e.target.value) : null })}
+                      // onChange={(e) => handleUpdateShare(share.id, { expiresAt: e.target.value ? new Date(e.target.value) : null })}
                       className="w-40 text-sm"
                     />
                     <Button

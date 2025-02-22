@@ -10,10 +10,15 @@ export interface SharedPassword {
   passwordId: string;
   sharedBy: string;
   sharedWith: string;
-  teamId?: string;
+  teamId?: string | null;
   permissions: 'read' | 'write';
   sharedAt: string;
   expiresAt?: string;
+  createdAt: string;
+}
+
+export interface SharedPasswordWithDetails extends SharedPassword {
+  sharedWithEmail: string;
 }
 
 export const sharePassword = async (
@@ -68,10 +73,11 @@ export const sharePassword = async (
     passwordId,
     sharedBy: userId,
     sharedWith: recipientId,
-    teamId: options.teamId,
+    teamId: options.teamId || null,
     permissions: options.permissions || 'read',
     sharedAt: new Date().toISOString(),
-    expiresAt: options.expiresAt?.toISOString()
+    expiresAt: options.expiresAt?.toISOString(),
+    createdAt: new Date().toISOString()
   };
 
   const shareRef = await addDoc(collection(db, 'shared_passwords'), shareData);
@@ -81,7 +87,7 @@ export const sharePassword = async (
     passwordId,
     recipientId,
     permissions: options.permissions,
-    teamId: options.teamId
+    teamId: options.teamId || null,
   });
 
   return {
@@ -108,19 +114,38 @@ export const getSharedPasswords = async (userId: string): Promise<SharedPassword
     .filter(share => !share.expiresAt || share.expiresAt > now);
 };
 
-export const getPasswordShares = async (userId: string, passwordId: string): Promise<SharedPassword[]> => {
-  // Get all shares for a specific password
+export const getPasswordShares = async (userId: string): Promise<SharedPasswordWithDetails[]> => {
   const sharesQuery = query(
-    collection(db, 'shared_passwords'),
-    where('passwordId', '==', passwordId),
-    where('sharedBy', '==', userId)
+    collection(db, "shared_passwords"),
+    where("sharedBy", "==", userId)
   );
-  
+
   const shareDocs = await getDocs(sharesQuery);
-  return shareDocs.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  } as SharedPassword));
+
+  const sharedPasswords = await Promise.all(
+    shareDocs.docs.map(async (docSnap) => {
+      const data = docSnap.data();
+
+      // Fetch sharedWith user email
+      let sharedWithEmail = "";
+      if (data.sharedWith) {
+        const userDoc = await getDoc(doc(db, "users", data.sharedWith));
+        sharedWithEmail = userDoc.exists() ? userDoc.data().email : "Unknown";
+      }
+
+      return {
+        id: docSnap.id,
+        passwordId: data.passwordId,
+        sharedWith: data.sharedWith,
+        sharedWithEmail,
+        permissions: data.permissions,
+        expiresAt: data.expiresAt,
+        sharedAt: data.sharedAt,
+      } as SharedPasswordWithDetails;
+    })
+  );
+
+  return sharedPasswords;
 };
 
 export const updatePasswordShare = async (

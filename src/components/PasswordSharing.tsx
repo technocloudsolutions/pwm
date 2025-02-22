@@ -11,8 +11,11 @@ import {
   getPasswordShares,
   updatePasswordShare,
   revokePasswordShare,
-  type SharedPassword
+  type SharedPassword,
+  SharedPasswordWithDetails
 } from '@/lib/password-sharing';
+import { IPassword } from '@/app/models/password';
+import { loadPasswords } from '@/lib/password';
 
 export function PasswordSharing() {
   const { user } = useAuth();
@@ -20,17 +23,24 @@ export function PasswordSharing() {
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [sharedWithMe, setSharedWithMe] = useState<SharedPassword[]>([]);
-  const [sharedByMe, setSharedByMe] = useState<SharedPassword[]>([]);
+  const [sharedByMe, setSharedByMe] = useState<SharedPasswordWithDetails[]>([]);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [selectedPasswordId, setSelectedPasswordId] = useState('');
   const [permissions, setPermissions] = useState<'read' | 'write'>('read');
   const [expiresAt, setExpiresAt] = useState('');
+  const [passwords, setPasswords] = useState<IPassword[]>([]);
 
   useEffect(() => {
+    const fetchPasswords = async () => {
+      const passwords = await loadPasswords(user?.uid);
+      setPasswords(passwords);
+    };
+
     loadSharedPasswords();
+    fetchPasswords();
   }, [user]);
 
-  const loadSharedPasswords = async () => {
+  const loadSharedPasswords = async () => {    
     if (!user) return;
 
     try {
@@ -39,7 +49,7 @@ export function PasswordSharing() {
       setSharedWithMe(sharedWithMePasswords);
 
       // Get passwords shared by me
-      const myPasswords = await getPasswordShares(user.uid, selectedPasswordId);
+      const myPasswords = await getPasswordShares(user.uid);
       setSharedByMe(myPasswords);
     } catch (error: any) {
       toast({
@@ -122,6 +132,13 @@ export function PasswordSharing() {
     }
   };
 
+  const formatDateForInput = (isoString?: string) => {
+    if (!isoString) return "";
+    
+    const date = new Date(isoString);
+    return date.toISOString().slice(0, 16);
+  };
+
   if (loading) {
     return <div className="flex justify-center p-4">Loading...</div>;
   }
@@ -134,12 +151,14 @@ export function PasswordSharing() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Password</label>
-              <Input
-                type="text"
-                value={selectedPasswordId}
+              <select
                 onChange={(e) => setSelectedPasswordId(e.target.value)}
-                placeholder="Enter password ID"
-              />
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {passwords.map((password) => (
+                  <option key={password.id} value={password.id}>{password.title}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Recipient Email</label>
@@ -224,7 +243,7 @@ export function PasswordSharing() {
                     <div>
                       <p className="font-medium">Password ID: {share.passwordId}</p>
                       <p className="text-sm text-muted-foreground">
-                        Shared with: {share.sharedWith}
+                        Shared with: {share.sharedWithEmail}
                       </p>
                     </div>
                   </div>
@@ -239,7 +258,7 @@ export function PasswordSharing() {
                     </select>
                     <Input
                       type="datetime-local"
-                      value={share.expiresAt || ''}
+                      value={formatDateForInput(share.expiresAt)}
                       onChange={(e) => handleUpdateShare(share.id, { expiresAt: e.target.value ? new Date(e.target.value) : null })}
                       className="w-40 text-sm"
                     />

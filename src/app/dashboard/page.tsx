@@ -19,14 +19,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Eye, EyeOff, Copy, Trash, RefreshCw, Settings } from "lucide-react";
 import { generatePassword } from "@/lib/utils";
 import { canAddPassword } from "@/lib/subscription";
-
-interface Password {
-  id: string;
-  title: string;
-  username: string;
-  password: string;
-  url: string;
-}
+import { IPassword } from "../models/password";
+import { loadPasswords } from "@/lib/password";
 
 interface PasswordGeneratorOptions {
   length: number;
@@ -39,7 +33,7 @@ interface PasswordGeneratorOptions {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [passwords, setPasswords] = useState<Password[]>([]);
+  const [passwords, setPasswords] = useState<IPassword[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +55,24 @@ export default function DashboardPage() {
       includeNumbers: true,
       includeSymbols: true,
     });
-  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(true);
 
   useEffect(() => {
-    if (user && !checkIsSubscriptionExpired(user.uid)) {
-      loadPasswords();
+    if (user) {
+      checkIsSubscriptionExpired(user.uid);
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchPasswords = async () => {
+      if (user && !isSubscriptionExpired) {
+        setLoading(true);
+        setPasswords(await loadPasswords(user.uid));
+        setLoading(false);
+      }
+    };
+    fetchPasswords();
+  }, [user, isSubscriptionExpired]);
 
   useEffect(() => {
     if (showPasswordGenerator) {
@@ -75,34 +80,6 @@ export default function DashboardPage() {
       setNewPassword({ ...newPassword, password: newGeneratedPassword });
     }
   }, [passwordOptions, showPasswordGenerator]);
-
-  const loadPasswords = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const q = query(
-        collection(db, "passwords"),
-        where("userId", "==", user.uid)
-      );
-      const querySnapshot = await getDocs(q);
-      const loadedPasswords: Password[] = [];
-      querySnapshot.forEach((doc) => {
-        loadedPasswords.push({ id: doc.id, ...doc.data() } as Password);
-      });
-      setPasswords(loadedPasswords);
-    } catch (error: any) {
-      setError(error.message);
-      toast({
-        title: "Error",
-        description: "Failed to load passwords. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const checkIsSubscriptionExpired = async (userId: string) => {
     setLoading(true);
@@ -159,7 +136,7 @@ export default function DashboardPage() {
 
       setNewPassword({ title: "", username: "", password: "", url: "" });
       setShowAddForm(false);
-      loadPasswords();
+      setPasswords(await loadPasswords(user.uid));
 
       toast({
         title: "Success",
@@ -177,7 +154,7 @@ export default function DashboardPage() {
   const handleDeletePassword = async (id: string) => {
     try {
       await deleteDoc(doc(db, "passwords", id));
-      loadPasswords();
+      setPasswords(await loadPasswords(user?.uid));
       toast({
         title: "Success",
         description: "Password deleted successfully",

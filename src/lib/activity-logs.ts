@@ -41,10 +41,10 @@ export const logActivity = async (
     userId,
     action,
     details,
-    teamId,
+    teamId: teamId || null,
     timestamp: new Date().toISOString()
   };
-
+  
   await addDoc(collection(db, 'activity_logs'), logData);
 };
 

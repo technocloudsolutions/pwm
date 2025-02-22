@@ -16,6 +16,7 @@ import { db } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/components/ui/use-toast";
+import SubscriptionHistory from "@/components/admin/SubscriptionHistory";
 
 type SortField = 'email' | 'role' | 'subscription' | 'createdAt';
 type SortOrder = 'asc' | 'desc';
@@ -620,6 +621,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </Card>
+
+      {<SubscriptionHistory />}
 
       {/* Recent Activity */}
       {dashboardData && <ActivityLogs activities={dashboardData.recentActivity} />}

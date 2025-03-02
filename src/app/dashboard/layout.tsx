@@ -1,30 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
-import {
-  Key,
-  Settings,
-  CreditCard,
-  Menu,
-  X,
-  LogOut,
-  User,
-  Home,
-  Shield,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { IBrandingSettings } from "../models/BrandingSettings";
+import { cn } from "@/lib/utils";
+import { doc, getDoc } from "firebase/firestore";
+import {
+  CreditCard,
+  Home,
+  LogOut,
+  Menu,
+  Settings,
+  Shield,
+  User,
+  X,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "../store/store";
 import { setBranding, setLoading } from "../store/brandingSlice";
+import { AppDispatch, RootState } from "../store/store";
 
 const navigation = [
   {

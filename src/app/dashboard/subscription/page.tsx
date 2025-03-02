@@ -1,22 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import { Check, AlertTriangle } from "lucide-react";
-import PayHereButton from "@/components/PayHereButton";
-import { Card } from "@/components/ui/card";
+import { AppDispatch, RootState } from "@/app/store/store";
 import {
   loadSubscription,
   setCurrentPlan,
   setLoading,
 } from "@/app/store/subscriptionSlice";
-import { AppDispatch, RootState } from "@/app/store/store";
-import { doc } from "firebase/firestore";
-import { updateDoc } from "firebase/firestore";
+import PayHereButton from "@/components/PayHereButton";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import SubscriptionWarnings from "../../../components/SubscriptionWarnings";
 
 interface Plan {

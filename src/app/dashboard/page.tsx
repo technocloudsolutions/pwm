@@ -1,24 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
+import SubscriptionWarnings from "@/components/SubscriptionWarnings";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, EyeOff, Copy, Trash, RefreshCw, Settings } from "lucide-react";
-import { generatePassword } from "@/lib/utils";
-import { canAddPassword } from "@/lib/subscription";
-import { IPassword } from "../models/password";
+import { useAuth } from "@/lib/auth-context";
+import { db } from "@/lib/firebase";
 import { loadPasswords } from "@/lib/password";
 import { getSharedPasswords, SharedPassword } from "@/lib/password-sharing";
-import { Card } from "@/components/ui/card";
-import { Lock, Clock, Shield } from "lucide-react";
+import { canAddPassword } from "@/lib/subscription";
+import { generatePassword } from "@/lib/utils";
+import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
+import {
+  Clock,
+  Copy,
+  Eye,
+  EyeOff,
+  Lock,
+  RefreshCw,
+  Settings,
+  Shield,
+  Trash,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { IPassword } from "../models/password";
 import { AppDispatch, RootState } from "../store/store";
 import { loadSubscription } from "../store/subscriptionSlice";
-import SubscriptionWarnings from "@/components/SubscriptionWarnings";
 
 interface PasswordGeneratorOptions {
   length: number;

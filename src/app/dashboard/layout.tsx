@@ -22,6 +22,9 @@ import { useAuth } from "@/lib/auth-context";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { IBrandingSettings } from "../models/BrandingSettings";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "../store/store";
+import { setBranding, setLoading } from "../store/brandingSlice";
 
 const navigation = [
   {
@@ -60,34 +63,26 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { user, signOut, isAdmin } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [settings, setSettings] = useState<IBrandingSettings>({
-    primaryColor: "#000000",
-    secondaryColor: "#ffffff",
-    accentColor: "#0070f3",
-    logo: "/logo.svg",
-    companyName: "BIGTIFY PASS",
-    customDomain: "",
-  });
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch<AppDispatch>();
+  const branding = useSelector((state: RootState) => state.branding);
 
   useEffect(() => {
     const getBranding = async () => {
-      setLoading(true);
-      if (user?.uid) {
-        const settingsDoc = await getDoc(
-          doc(db, "branding_settings", user.uid)
-        );
-        if (settingsDoc.exists()) {
-          setSettings(settingsDoc.data() as IBrandingSettings);
-        }
+      if (!user?.uid) return;
+
+      dispatch(setLoading(true));
+      const settingsDoc = await getDoc(doc(db, "branding_settings", user.uid));
+
+      if (settingsDoc.exists()) {
+        dispatch(setBranding(settingsDoc.data() as Partial<typeof branding>));
       }
-      setLoading(false);
+      dispatch(setLoading(false));
     };
 
     getBranding();
-  }, [user]);
+  }, [user, dispatch]);
 
-  if (!user || loading) {
+  if (!user || branding.loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -103,13 +98,13 @@ export default function DashboardLayout({
           <div className="mr-4 hidden md:flex">
             <Link href="/dashboard" className="flex items-center space-x-2">
               <Image
-                src={settings.logo}
+                src={branding.logo}
                 alt="BIGTIFY PASS"
                 width={48}
                 height={48}
                 priority
               />
-              <span className="text-xl font-bold">{settings.companyName}</span>
+              <span className="text-xl font-bold">{branding.companyName}</span>
             </Link>
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">

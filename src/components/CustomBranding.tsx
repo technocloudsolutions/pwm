@@ -9,6 +9,9 @@ import { db } from '@/lib/firebase';
 import { getUserSubscription } from '@/lib/subscription';
 import { Palette } from 'lucide-react';
 import { IBrandingSettings } from '@/app/models/BrandingSettings';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '@/app/store/store';
+import { setBranding } from '@/app/store/brandingSlice';
 
 export function CustomBranding() {
   const { user } = useAuth();
@@ -24,6 +27,8 @@ export function CustomBranding() {
     companyName: '',
     customDomain: ''
   });
+  const dispatch = useDispatch<AppDispatch>();
+  const branding = useSelector((state: RootState) => state.branding);
 
   useEffect(() => {
     loadBrandingSettings();
@@ -69,6 +74,7 @@ export function CustomBranding() {
         companyName: settings.companyName,
         customDomain: settings.customDomain
       };
+      dispatch(setBranding(settingsData));
       await setDoc(doc(db, "branding_settings", user.uid), settingsData, { merge: true });
       toast({
         title: 'Success',

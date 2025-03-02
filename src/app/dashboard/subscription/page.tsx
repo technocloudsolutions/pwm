@@ -125,6 +125,23 @@ export default function SubscriptionPage() {
     return lkrAmount.toString();
   };
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    }).format(date);
+  };
+
+  const calculatePurchaseDate = (expirationDate: string | null) => {
+    if (!expirationDate) return "N/A";
+    const date = new Date(expirationDate);
+    date.setDate(date.getDate() - 30);
+    return formatDate(date.toISOString());
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -136,7 +153,24 @@ export default function SubscriptionPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <SubscriptionWarnings subscriptionStatus={subscriptionStatus} />
-      <div className="text-center">
+
+      {subscriptionStatus && (
+        <div className="mb-6 p-4 border rounded-lg bg-card">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold">Subscription Details</h2>
+          </div>
+          <p className="mt-2 text-center text-primary">
+            <strong>Purchase Date:</strong>{" "}
+            {calculatePurchaseDate(subscriptionStatus.expiresAt)}
+          </p>
+          <p className="mt-2 text-center text-primary">
+            <strong>Expiration Date:</strong>{" "}
+            {formatDate(subscriptionStatus.expiresAt)}
+          </p>
+        </div>
+      )}
+
+      <div className="text-center pt-4">
         <h2 className="text-3xl font-bold">Subscription Plans</h2>
         <p className="text-muted-foreground mt-2">
           Choose the perfect plan for your needs

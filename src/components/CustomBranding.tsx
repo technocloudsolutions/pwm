@@ -4,19 +4,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getUserSubscription } from '@/lib/subscription';
 import { Palette } from 'lucide-react';
-
-interface BrandingSettings {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  logo: string;
-  companyName: string;
-  customDomain: string;
-}
+import { IBrandingSettings } from '@/app/models/BrandingSettings';
 
 export function CustomBranding() {
   const { user } = useAuth();
@@ -24,7 +16,7 @@ export function CustomBranding() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [subscription, setSubscription] = useState<string>('free');
-  const [settings, setSettings] = useState<BrandingSettings>({
+  const [settings, setSettings] = useState<IBrandingSettings>({
     primaryColor: '#000000',
     secondaryColor: '#ffffff',
     accentColor: '#0070f3',
@@ -50,7 +42,7 @@ export function CustomBranding() {
       // Get branding settings
       const settingsDoc = await getDoc(doc(db, 'branding_settings', user.uid));
       if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data() as BrandingSettings);
+        setSettings(settingsDoc.data() as IBrandingSettings);
       }
     } catch (error: any) {
       toast({
@@ -77,7 +69,7 @@ export function CustomBranding() {
         companyName: settings.companyName,
         customDomain: settings.customDomain
       };
-      await updateDoc(doc(db, 'branding_settings', user.uid), settingsData);
+      await setDoc(doc(db, "branding_settings", user.uid), settingsData, { merge: true });
       toast({
         title: 'Success',
         description: 'Branding settings saved successfully',
@@ -93,7 +85,7 @@ export function CustomBranding() {
     }
   };
 
-  const handleChange = (field: keyof BrandingSettings, value: string) => {
+  const handleChange = (field: keyof IBrandingSettings, value: string) => {
     setSettings(prev => ({
       ...prev,
       [field]: value

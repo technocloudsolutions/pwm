@@ -1,19 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import Image from "next/image";
-import { ThemeToggle } from "@/components/theme-toggle";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -25,7 +26,7 @@ export default function LoginPage() {
         title: "Success",
         description: "Logged in successfully",
       });
-      router.push("/dashboard");
+      setIsLoggedIn(true);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -34,6 +35,12 @@ export default function LoginPage() {
       });
     }
   };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.push("/dashboard");
+    }
+  }, [isLoggedIn, router]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -114,7 +121,10 @@ export default function LoginPage() {
 
             <p className="text-center text-sm">
               Don't have an account?{" "}
-              <Link href="/auth/register" className="text-primary hover:underline">
+              <Link
+                href="/auth/register"
+                className="text-primary hover:underline"
+              >
                 Sign up
               </Link>
             </p>
@@ -123,4 +133,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}

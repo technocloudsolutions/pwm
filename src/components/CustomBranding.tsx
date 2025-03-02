@@ -1,31 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { getUserSubscription } from '@/lib/subscription';
-import { Palette } from 'lucide-react';
-import { IBrandingSettings } from '@/app/models/BrandingSettings';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '@/app/store/store';
-import { setBranding } from '@/app/store/brandingSlice';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { getUserSubscription } from "@/lib/subscription";
+import { Palette } from "lucide-react";
+import { IBrandingSettings } from "@/app/models/BrandingSettings";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "@/app/store/store";
+import { setBranding } from "@/app/store/brandingSlice";
 
 export function CustomBranding() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [subscription, setSubscription] = useState<string>('free');
+  const [subscription, setSubscription] = useState<string>("free");
   const [settings, setSettings] = useState<IBrandingSettings>({
-    primaryColor: '#000000',
-    secondaryColor: '#ffffff',
-    accentColor: '#0070f3',
-    logo: '',
-    companyName: '',
-    customDomain: ''
+    primaryColor: "#000000",
+    secondaryColor: "#ffffff",
+    accentColor: "#0070f3",
+    logo: "",
+    companyName: "",
+    customDomain: "",
   });
   const dispatch = useDispatch<AppDispatch>();
   const branding = useSelector((state: RootState) => state.branding);
@@ -39,21 +39,21 @@ export function CustomBranding() {
 
     try {
       setLoading(true);
-      
+
       // Get user's subscription
       const userSubscription = await getUserSubscription(user);
       setSubscription(userSubscription);
 
       // Get branding settings
-      const settingsDoc = await getDoc(doc(db, 'branding_settings', user.uid));
+      const settingsDoc = await getDoc(doc(db, "branding_settings", user.uid));
       if (settingsDoc.exists()) {
         setSettings(settingsDoc.data() as IBrandingSettings);
       }
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to load branding settings',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to load branding settings",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -72,19 +72,21 @@ export function CustomBranding() {
         accentColor: settings.accentColor,
         logo: settings.logo,
         companyName: settings.companyName,
-        customDomain: settings.customDomain
+        customDomain: settings.customDomain,
       };
+      await setDoc(doc(db, "branding_settings", user.uid), settingsData, {
+        merge: true,
+      });
       dispatch(setBranding(settingsData));
-      await setDoc(doc(db, "branding_settings", user.uid), settingsData, { merge: true });
       toast({
-        title: 'Success',
-        description: 'Branding settings saved successfully',
+        title: "Success",
+        description: "Branding settings saved successfully",
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to save branding settings',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to save branding settings",
+        variant: "destructive",
       });
     } finally {
       setSaving(false);
@@ -92,9 +94,9 @@ export function CustomBranding() {
   };
 
   const handleChange = (field: keyof IBrandingSettings, value: string) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -106,18 +108,18 @@ export function CustomBranding() {
     );
   }
 
-  if (subscription !== 'business') {
+  if (subscription !== "business") {
     return (
       <Card className="p-6">
         <div className="text-center space-y-4">
           <Palette className="h-12 w-12 mx-auto text-muted-foreground" />
           <h2 className="text-2xl font-bold">Custom Branding</h2>
           <p className="text-muted-foreground">
-            Custom branding is only available with the Business plan.
-            Upgrade your subscription to access this feature.
+            Custom branding is only available with the Business plan. Upgrade
+            your subscription to access this feature.
           </p>
           <Button
-            onClick={() => window.location.href = '/dashboard/subscription'}
+            onClick={() => (window.location.href = "/dashboard/subscription")}
             className="mt-4"
           >
             Upgrade to Business
@@ -132,11 +134,8 @@ export function CustomBranding() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Custom Branding</h2>
-          <Button
-            onClick={handleSaveSettings}
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
+          <Button onClick={handleSaveSettings} disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
 
@@ -149,7 +148,7 @@ export function CustomBranding() {
                 <label className="text-sm font-medium">Company Name</label>
                 <Input
                   value={settings.companyName}
-                  onChange={(e) => handleChange('companyName', e.target.value)}
+                  onChange={(e) => handleChange("companyName", e.target.value)}
                   placeholder="Enter your company name"
                 />
               </div>
@@ -157,7 +156,7 @@ export function CustomBranding() {
                 <label className="text-sm font-medium">Logo URL</label>
                 <Input
                   value={settings.logo}
-                  onChange={(e) => handleChange('logo', e.target.value)}
+                  onChange={(e) => handleChange("logo", e.target.value)}
                   placeholder="Enter your logo URL"
                 />
               </div>
@@ -165,7 +164,7 @@ export function CustomBranding() {
                 <label className="text-sm font-medium">Custom Domain</label>
                 <Input
                   value={settings.customDomain}
-                  onChange={(e) => handleChange('customDomain', e.target.value)}
+                  onChange={(e) => handleChange("customDomain", e.target.value)}
                   placeholder="Enter your custom domain"
                 />
               </div>
@@ -182,13 +181,17 @@ export function CustomBranding() {
                   <Input
                     type="color"
                     value={settings.primaryColor}
-                    onChange={(e) => handleChange('primaryColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("primaryColor", e.target.value)
+                    }
                     className="w-12 h-12 p-1"
                   />
                   <Input
                     type="text"
                     value={settings.primaryColor}
-                    onChange={(e) => handleChange('primaryColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("primaryColor", e.target.value)
+                    }
                     placeholder="#000000"
                     className="flex-1"
                   />
@@ -200,13 +203,17 @@ export function CustomBranding() {
                   <Input
                     type="color"
                     value={settings.secondaryColor}
-                    onChange={(e) => handleChange('secondaryColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("secondaryColor", e.target.value)
+                    }
                     className="w-12 h-12 p-1"
                   />
                   <Input
                     type="text"
                     value={settings.secondaryColor}
-                    onChange={(e) => handleChange('secondaryColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("secondaryColor", e.target.value)
+                    }
                     placeholder="#ffffff"
                     className="flex-1"
                   />
@@ -218,13 +225,17 @@ export function CustomBranding() {
                   <Input
                     type="color"
                     value={settings.accentColor}
-                    onChange={(e) => handleChange('accentColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("accentColor", e.target.value)
+                    }
                     className="w-12 h-12 p-1"
                   />
                   <Input
                     type="text"
                     value={settings.accentColor}
-                    onChange={(e) => handleChange('accentColor', e.target.value)}
+                    onChange={(e) =>
+                      handleChange("accentColor", e.target.value)
+                    }
                     placeholder="#0070f3"
                     className="flex-1"
                   />
@@ -242,7 +253,7 @@ export function CustomBranding() {
             style={{
               backgroundColor: settings.secondaryColor,
               color: settings.primaryColor,
-              border: `2px solid ${settings.accentColor}`
+              border: `2px solid ${settings.accentColor}`,
             }}
           >
             <div className="flex items-center gap-4">
@@ -254,11 +265,14 @@ export function CustomBranding() {
                 />
               )}
               <div>
-                <h4 className="text-xl font-bold" style={{ color: settings.primaryColor }}>
-                  {settings.companyName || 'Your Company Name'}
+                <h4
+                  className="text-xl font-bold"
+                  style={{ color: settings.primaryColor }}
+                >
+                  {settings.companyName || "Your Company Name"}
                 </h4>
                 <p className="text-sm" style={{ color: settings.accentColor }}>
-                  {settings.customDomain || 'your-domain.com'}
+                  {settings.customDomain || "your-domain.com"}
                 </p>
               </div>
             </div>
@@ -267,4 +281,4 @@ export function CustomBranding() {
       </div>
     </Card>
   );
-} 
+}

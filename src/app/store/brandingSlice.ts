@@ -20,13 +20,30 @@ const initialState: BrandingState = {
   loading: true,
 };
 
+const updateColors = (state: BrandingState) => {
+  document.documentElement.style.setProperty(
+    "--primary-color",
+    state.primaryColor
+  );
+  document.documentElement.style.setProperty(
+    "--secondary-color",
+    state.secondaryColor
+  );
+  document.documentElement.style.setProperty(
+    "--accent-color",
+    state.accentColor
+  );
+};
+
 const brandingSlice = createSlice({
   name: "branding",
   initialState,
   reducers: {
     setBranding: (state, action: PayloadAction<Partial<BrandingState>>) => {
       const logo = action.payload.logo ? action.payload.logo : "/logo.svg";
-      return { ...state, ...action.payload, logo, loading: false };
+      const newState = { ...state, ...action.payload, logo, loading: false };
+      updateColors(newState);
+      return newState;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;

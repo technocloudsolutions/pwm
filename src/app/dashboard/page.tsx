@@ -1,23 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
+import SubscriptionWarnings from "@/components/SubscriptionWarnings";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, EyeOff, Copy, Trash, RefreshCw, Settings } from "lucide-react";
-import { generatePassword } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { db } from "@/lib/firebase";
+import { loadPasswords } from "@/lib/password";
+import { getSharedPasswords, SharedPassword } from "@/lib/password-sharing";
 import { canAddPassword } from "@/lib/subscription";
-
-interface Password {
-  id: string;
-  title: string;
-  username: string;
-  password: string;
-  url: string;
-}
+import { generatePassword } from "@/lib/utils";
+import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
+import {
+  Clock,
+  Copy,
+  Eye,
+  EyeOff,
+  Lock,
+  RefreshCw,
+  Settings,
+  Shield,
+  Trash,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { IPassword } from "../models/password";
+import { AppDispatch, RootState } from "../store/store";
+import { loadSubscription } from "../store/subscriptionSlice";
 
 interface PasswordGeneratorOptions {
   length: number;
@@ -30,9 +40,13 @@ interface PasswordGeneratorOptions {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [passwords, setPasswords] = useState<Password[]>([]);
+  const dispatch = useDispatch<AppDispatch>();
+  const { currentPlan, subscriptionStatus } = useSelector(
+    (state: RootState) => state.subscription
+  );
+  const [passwords, setPasswords] = useState<IPassword[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState({
     title: "",
@@ -40,23 +54,37 @@ export default function DashboardPage() {
     password: "",
     url: "",
   });
-  const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>(
-    {}
-  );
+  const [showPasswords, setShowPasswords] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [showPasswordGenerator, setShowPasswordGenerator] = useState(false);
-  const [passwordOptions, setPasswordOptions] = useState<PasswordGeneratorOptions>({
-    length: 16,
-    includeUppercase: true,
-    includeLowercase: true,
-    includeNumbers: true,
-    includeSymbols: true,
-  });
+  const [passwordOptions, setPasswordOptions] =
+    useState<PasswordGeneratorOptions>({
+      length: 16,
+      includeUppercase: true,
+      includeLowercase: true,
+      includeNumbers: true,
+      includeSymbols: true,
+    });
+  const [sharedWithMe, setSharedWithMe] = useState<SharedPassword[]>([]);
 
   useEffect(() => {
     if (user) {
-      loadPasswords();
+      dispatch(loadSubscription(user));
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchPasswords = async () => {
+      if (user && !subscriptionStatus?.isActive) {
+        setLoading(true);
+        setPasswords(await loadPasswords(user.uid));
+        setSharedWithMe(await getSharedPasswords(user.uid));
+        setLoading(false);
+      }
+    };
+    fetchPasswords();
+  }, [user, subscriptionStatus]);
 
   useEffect(() => {
     if (showPasswordGenerator) {
@@ -64,35 +92,6 @@ export default function DashboardPage() {
       setNewPassword({ ...newPassword, password: newGeneratedPassword });
     }
   }, [passwordOptions, showPasswordGenerator]);
-
-  const loadPasswords = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const q = query(
-        collection(db, "passwords"),
-        where("userId", "==", user.uid)
-      );
-      const querySnapshot = await getDocs(q);
-      const loadedPasswords: Password[] = [];
-      querySnapshot.forEach((doc) => {
-        loadedPasswords.push({ id: doc.id, ...doc.data() } as Password);
-      });
-      setPasswords(loadedPasswords);
-    } catch (error: any) {
-      console.error("Error loading passwords:", error);
-      setError(error.message);
-      toast({
-        title: "Error",
-        description: "Failed to load passwords. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +102,8 @@ export default function DashboardPage() {
       if (!canAdd) {
         toast({
           title: "Limit Reached",
-          description: "You've reached your password limit. Please upgrade your plan to add more passwords.",
+          description:
+            "You've reached your password limit. Please upgrade your plan to add more passwords.",
           variant: "destructive",
         });
         return;
@@ -117,7 +117,7 @@ export default function DashboardPage() {
 
       setNewPassword({ title: "", username: "", password: "", url: "" });
       setShowAddForm(false);
-      loadPasswords();
+      setPasswords(await loadPasswords(user.uid));
 
       toast({
         title: "Success",
@@ -135,7 +135,7 @@ export default function DashboardPage() {
   const handleDeletePassword = async (id: string) => {
     try {
       await deleteDoc(doc(db, "passwords", id));
-      loadPasswords();
+      setPasswords(await loadPasswords(user?.uid));
       toast({
         title: "Success",
         description: "Password deleted successfully",
@@ -191,7 +191,10 @@ export default function DashboardPage() {
       )}
 
       {showAddForm && (
-        <form onSubmit={handleAddPassword} className="space-y-4 p-4 border rounded-lg">
+        <form
+          onSubmit={handleAddPassword}
+          className="space-y-4 p-4 border rounded-lg"
+        >
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Title</label>
@@ -246,7 +249,9 @@ export default function DashboardPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setShowPasswordGenerator(!showPasswordGenerator)}
+                  onClick={() =>
+                    setShowPasswordGenerator(!showPasswordGenerator)
+                  }
                   title="Password generator settings"
                 >
                   <Settings className="h-4 w-4" />
@@ -353,7 +358,8 @@ export default function DashboardPage() {
                   </label>
                 </div>
                 <div className="text-sm text-muted-foreground mt-2">
-                  Tip: A strong password should be at least 12 characters long and include a mix of different character types.
+                  Tip: A strong password should be at least 12 characters long
+                  and include a mix of different character types.
                 </div>
               </div>
             </div>
@@ -375,67 +381,116 @@ export default function DashboardPage() {
         </form>
       )}
 
-      <div className="grid gap-4">
-        {passwords.map((password) => (
-          <div
-            key={password.id}
-            className="p-4 border rounded-lg flex items-center justify-between"
-          >
-            <div className="space-y-1">
-              <h3 className="font-medium">{password.title}</h3>
-              <p className="text-sm text-muted-foreground">{password.username}</p>
-              <p className="text-sm font-mono">
-                {showPasswords[password.id] ? password.password : '••••••••'}
-              </p>
-              {password.url && (
-                <a
-                  href={password.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  {password.url}
-                </a>
-              )}
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => togglePasswordVisibility(password.id)}
-                title={showPasswords[password.id] ? "Hide password" : "Show password"}
-              >
-                {showPasswords[password.id] ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
+      <SubscriptionWarnings subscriptionStatus={subscriptionStatus} />
+
+      {subscriptionStatus?.isActive && (
+        <div className="grid gap-4">
+          {passwords.map((password) => (
+            <div
+              key={password.id}
+              className="p-4 border rounded-lg flex items-center justify-between"
+            >
+              <div className="space-y-1">
+                <h3 className="font-medium">{password.title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {password.username}
+                </p>
+                <p className="text-sm font-mono">
+                  {showPasswords[password.id] ? password.password : "••••••••"}
+                </p>
+                {password.url && (
+                  <a
+                    href={password.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {password.url}
+                  </a>
                 )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => copyToClipboard(password.password)}
-                title="Copy password"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDeletePassword(password.id)}
-                title="Delete password"
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => togglePasswordVisibility(password.id)}
+                  title={
+                    showPasswords[password.id]
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showPasswords[password.id] ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => copyToClipboard(password.password)}
+                  title="Copy password"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDeletePassword(password.id)}
+                  title="Delete password"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
-        {passwords.length === 0 && !loading && (
-          <div className="text-center py-8 text-muted-foreground">
-            No passwords saved yet. Click "Add Password" to get started.
-          </div>
-        )}
-      </div>
+          ))}
+          {subscriptionStatus?.isActive &&
+            passwords.length === 0 &&
+            !loading && (
+              <div className="text-center py-8 text-muted-foreground">
+                No passwords saved yet. Click "Add Password" to get started.
+              </div>
+            )}
+
+          {sharedWithMe.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Shared with Me</h2>
+              <div className="space-y-4">
+                {sharedWithMe.map((share) => (
+                  <Card key={share.id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <Lock className="w-4 h-4" />
+                        <div>
+                          <p className="font-medium">
+                            Password ID: {share.passwordId}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Shared by: {share.sharedBy}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Shield
+                          className={`w-4 h-4 ${
+                            share.permissions === "write"
+                              ? "text-green-500"
+                              : "text-yellow-500"
+                          }`}
+                        />
+                        {share.expiresAt && (
+                          <Clock className="w-4 h-4 text-blue-500" />
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
-} 
+}

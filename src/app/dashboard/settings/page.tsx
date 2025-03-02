@@ -1,13 +1,40 @@
 "use client";
 
-import { DeviceManagement } from '@/components/DeviceManagement';
-import { TeamManagement } from '@/components/TeamManagement';
-import { SupportTickets } from '@/components/SupportTickets';
-import { CustomBranding } from '@/components/CustomBranding';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Laptop, Users, MessageSquare, Palette } from 'lucide-react';
+import { DeviceManagement } from "@/components/DeviceManagement";
+import { TeamManagement } from "@/components/TeamManagement";
+import { SupportTickets } from "@/components/SupportTickets";
+import { CustomBranding } from "@/components/CustomBranding";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Laptop, Users, MessageSquare, Palette, Lock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { PasswordSharing } from "@/components";
+import { useAuth } from "@/lib/auth-context";
+import { toast } from "@/components/ui/use-toast";
+import { getUserSubscription } from "@/lib/subscription";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const [subscription, setSubscription] = useState<string>("free");
+
+  useEffect(() => {
+    const loadSubscription = async () => {
+      if (user) {
+        try {
+          const sub = await getUserSubscription(user);
+          setSubscription(sub);
+        } catch (error: any) {
+          console.error("Subscription error:", error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to load subscription",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    loadSubscription();
+  }, [user]);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold">Settings</h1>
@@ -17,6 +44,13 @@ export default function SettingsPage() {
           <TabsTrigger value="devices" className="flex items-center gap-2">
             <Laptop className="h-4 w-4" />
             Devices
+          </TabsTrigger>
+          <TabsTrigger
+            value="password-sharing"
+            className="flex items-center gap-2"
+          >
+            <Lock className="h-4 w-4" />
+            Password Sharing
           </TabsTrigger>
           <TabsTrigger value="teams" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -36,6 +70,20 @@ export default function SettingsPage() {
           <DeviceManagement />
         </TabsContent>
 
+        <TabsContent value="password-sharing">
+          {subscription === "premium" || subscription === "business" ? (
+            <PasswordSharing />
+          ) : (
+            <div className="text-center py-6">
+              <h3 className="text-lg font-semibold mb-2">Premium Feature</h3>
+              <p className="text-muted-foreground mb-4">
+                Upgrade to Premium or Business plan to share passwords with
+                other users.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="teams">
           <TeamManagement />
         </TabsContent>
@@ -50,4 +98,4 @@ export default function SettingsPage() {
       </Tabs>
     </div>
   );
-} 
+}

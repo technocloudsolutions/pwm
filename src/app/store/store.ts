@@ -1,11 +1,19 @@
-import { configureStore } from "@reduxjs/toolkit";
-import brandingReducer from "./brandingSlice"; // Import your reducers
+import { Action, configureStore, ThunkAction } from "@reduxjs/toolkit";
+import brandingReducer from "./brandingSlice";
+import subscriptionReducer from "./subscriptionSlice";
 
 export const store = configureStore({
   reducer: {
-    branding: brandingReducer, // Add your slice reducers here
+    branding: brandingReducer,
+    subscription: subscriptionReducer,
   },
 });
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+export type AppThunk<ReturnType = void> = ThunkAction<
+  ReturnType,
+  RootState,
+  unknown,
+  Action<string>
+>;

@@ -15,6 +15,10 @@ import { loadPasswords } from "@/lib/password";
 import { getSharedPasswords, SharedPassword } from "@/lib/password-sharing";
 import { Card } from "@/components/ui/card";
 import { Lock, Clock, Shield } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "../store/store";
+import { loadSubscription } from "../store/subscriptionSlice";
+import SubscriptionWarnings from "@/components/SubscriptionWarnings";
 
 interface PasswordGeneratorOptions {
   length: number;
@@ -27,6 +31,10 @@ interface PasswordGeneratorOptions {
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const dispatch = useDispatch<AppDispatch>();
+  const { currentPlan, subscriptionStatus } = useSelector(
+    (state: RootState) => state.subscription
+  );
   const [passwords, setPasswords] = useState<IPassword[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,18 +57,17 @@ export default function DashboardPage() {
       includeNumbers: true,
       includeSymbols: true,
     });
-  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(true);
   const [sharedWithMe, setSharedWithMe] = useState<SharedPassword[]>([]);
 
   useEffect(() => {
     if (user) {
-      checkIsSubscriptionExpired(user.uid);
+      dispatch(loadSubscription(user));
     }
   }, [user]);
 
   useEffect(() => {
     const fetchPasswords = async () => {
-      if (user && !isSubscriptionExpired) {
+      if (user && !subscriptionStatus?.isActive) {
         setLoading(true);
         setPasswords(await loadPasswords(user.uid));
         setSharedWithMe(await getSharedPasswords(user.uid));
@@ -68,7 +75,7 @@ export default function DashboardPage() {
       }
     };
     fetchPasswords();
-  }, [user, isSubscriptionExpired]);
+  }, [user, subscriptionStatus]);
 
   useEffect(() => {
     if (showPasswordGenerator) {
@@ -76,37 +83,6 @@ export default function DashboardPage() {
       setNewPassword({ ...newPassword, password: newGeneratedPassword });
     }
   }, [passwordOptions, showPasswordGenerator]);
-
-  const checkIsSubscriptionExpired = async (userId: string) => {
-    setLoading(true);
-    const userDoc = await getDoc(doc(db, "users", userId));
-    if (userDoc.exists()) {
-      const userData = userDoc.data();
-      if (userData?.lastPayment?.date) {
-        const lastPaymentDate = new Date(userData.lastPayment.date);
-        const currentDate = new Date();
-        const daysSinceLastPayment = Math.floor(
-          (currentDate.getTime() - lastPaymentDate.getTime()) /
-            (1000 * 3600 * 24)
-        );
-        if (daysSinceLastPayment > 30) {
-          toast({
-            title: "Subscription Expired",
-            description:
-              "Your subscription has expired. Please renew your plan to continue using the service.",
-            variant: "destructive",
-          });
-          setIsSubscriptionExpired(true);
-          setLoading(false);
-          return true;
-        }
-      }
-    }
-
-    setIsSubscriptionExpired(false);
-    setLoading(false);
-    return false;
-  };
 
   const handleAddPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -396,114 +372,116 @@ export default function DashboardPage() {
         </form>
       )}
 
-      <div className="grid gap-4">
-        {passwords.map((password) => (
-          <div
-            key={password.id}
-            className="p-4 border rounded-lg flex items-center justify-between"
-          >
-            <div className="space-y-1">
-              <h3 className="font-medium">{password.title}</h3>
-              <p className="text-sm text-muted-foreground">
-                {password.username}
-              </p>
-              <p className="text-sm font-mono">
-                {showPasswords[password.id] ? password.password : "••••••••"}
-              </p>
-              {password.url && (
-                <a
-                  href={password.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  {password.url}
-                </a>
-              )}
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => togglePasswordVisibility(password.id)}
-                title={
-                  showPasswords[password.id] ? "Hide password" : "Show password"
-                }
-              >
-                {showPasswords[password.id] ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => copyToClipboard(password.password)}
-                title="Copy password"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDeletePassword(password.id)}
-                title="Delete password"
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-        {!isSubscriptionExpired && passwords.length === 0 && !loading && (
-          <div className="text-center py-8 text-muted-foreground">
-            No passwords saved yet. Click "Add Password" to get started.
-          </div>
-        )}
-        {isSubscriptionExpired && !loading && (
-          <div className="text-center py-8 text-muted-foreground">
-            Your subscription has expired. Please renew your plan to continue
-            using the service.
-          </div>
-        )}
+      <SubscriptionWarnings subscriptionStatus={subscriptionStatus} />
 
-        {sharedWithMe.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold mb-4">Shared with Me</h2>
-            <div className="space-y-4">
-              {sharedWithMe.map((share) => (
-                <Card key={share.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Lock className="w-4 h-4" />
-                      <div>
-                        <p className="font-medium">
-                          Password ID: {share.passwordId}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Shared by: {share.sharedBy}
-                        </p>
+      {subscriptionStatus?.isActive && (
+        <div className="grid gap-4">
+          {passwords.map((password) => (
+            <div
+              key={password.id}
+              className="p-4 border rounded-lg flex items-center justify-between"
+            >
+              <div className="space-y-1">
+                <h3 className="font-medium">{password.title}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {password.username}
+                </p>
+                <p className="text-sm font-mono">
+                  {showPasswords[password.id] ? password.password : "••••••••"}
+                </p>
+                {password.url && (
+                  <a
+                    href={password.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {password.url}
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => togglePasswordVisibility(password.id)}
+                  title={
+                    showPasswords[password.id]
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showPasswords[password.id] ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => copyToClipboard(password.password)}
+                  title="Copy password"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDeletePassword(password.id)}
+                  title="Delete password"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {subscriptionStatus?.isActive &&
+            passwords.length === 0 &&
+            !loading && (
+              <div className="text-center py-8 text-muted-foreground">
+                No passwords saved yet. Click "Add Password" to get started.
+              </div>
+            )}
+
+          {sharedWithMe.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Shared with Me</h2>
+              <div className="space-y-4">
+                {sharedWithMe.map((share) => (
+                  <Card key={share.id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <Lock className="w-4 h-4" />
+                        <div>
+                          <p className="font-medium">
+                            Password ID: {share.passwordId}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Shared by: {share.sharedBy}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Shield
+                          className={`w-4 h-4 ${
+                            share.permissions === "write"
+                              ? "text-green-500"
+                              : "text-yellow-500"
+                          }`}
+                        />
+                        {share.expiresAt && (
+                          <Clock className="w-4 h-4 text-blue-500" />
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Shield
-                        className={`w-4 h-4 ${
-                          share.permissions === "write"
-                            ? "text-green-500"
-                            : "text-yellow-500"
-                        }`}
-                      />
-                      {share.expiresAt && (
-                        <Clock className="w-4 h-4 text-blue-500" />
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

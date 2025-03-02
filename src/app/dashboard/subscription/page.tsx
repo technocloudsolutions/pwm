@@ -1,16 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { redirect } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
-import { Check, AlertTriangle } from 'lucide-react';
-import PayHereButton from '@/components/PayHereButton';
-import { Card } from '@/components/ui/card';
-import { getSubscriptionStatus } from '@/lib/subscription';
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { Check, AlertTriangle } from "lucide-react";
+import PayHereButton from "@/components/PayHereButton";
+import { Card } from "@/components/ui/card";
+import {
+  loadSubscription,
+  setCurrentPlan,
+  setLoading,
+} from "@/app/store/subscriptionSlice";
+import { AppDispatch, RootState } from "@/app/store/store";
+import { doc } from "firebase/firestore";
+import { updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import SubscriptionWarnings from "../../../components/SubscriptionWarnings";
 
 interface Plan {
   name: string;
@@ -20,38 +27,38 @@ interface Plan {
 
 const plans: Plan[] = [
   {
-    name: 'Free',
-    price: '$0/month',
+    name: "Free",
+    price: "$0/month",
     features: [
-      'Store up to 3 passwords',
-      'Store 1 personal info entry',
-      'Basic encryption',
-      'Access from one device',
+      "Store up to 3 passwords",
+      "Store 1 personal info entry",
+      "Basic encryption",
+      "Access from one device",
     ],
   },
   {
-    name: 'Premium',
-    price: '$4.99/month',
+    name: "Premium",
+    price: "$4.99/month",
     features: [
-      'Unlimited passwords',
-      'Store up to 50 personal info entries',
-      'Advanced encryption',
-      'Access from multiple devices',
-      'Secure password sharing',
-      'Priority support',
+      "Unlimited passwords",
+      "Store up to 50 personal info entries",
+      "Advanced encryption",
+      "Access from multiple devices",
+      "Secure password sharing",
+      "Priority support",
     ],
   },
   {
-    name: 'Business',
-    price: '$9.99/month',
+    name: "Business",
+    price: "$9.99/month",
     features: [
-      'Everything in Premium',
-      'Unlimited personal info entries',
-      'Team password sharing',
-      'Admin dashboard',
-      'Activity logs',
-      '24/7 support',
-      'Custom branding',
+      "Everything in Premium",
+      "Unlimited personal info entries",
+      "Team password sharing",
+      "Admin dashboard",
+      "Activity logs",
+      "24/7 support",
+      "Custom branding",
     ],
   },
 ];
@@ -59,73 +66,33 @@ const plans: Plan[] = [
 export default function SubscriptionPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentPlan, setCurrentPlan] = useState<string>('free');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+  const { currentPlan, loading, subscriptionStatus } = useSelector(
+    (state: RootState) => state.subscription
+  );
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<{
-    isActive: boolean;
-    isSuspended: boolean;
-    expiresAt: string | null;
-    daysUntilExpiration: number | null;
-  } | null>(null);
 
   useEffect(() => {
     if (user) {
-      loadSubscription();
+      dispatch(loadSubscription(user));
     }
-  }, [user]);
-
-  const loadSubscription = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          email: user.email,
-          subscription: 'free',
-          createdAt: new Date().toISOString(),
-        });
-        setCurrentPlan('free');
-      } else {
-        setCurrentPlan(userDoc.data().subscription || 'free');
-      }
-
-      // Load subscription status
-      const status = await getSubscriptionStatus(user);
-      setSubscriptionStatus(status);
-    } catch (error: any) {
-      console.error('Error loading subscription:', error);
-      setError(error.message);
-      toast({
-        title: 'Error',
-        description: 'Failed to load subscription details. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, dispatch]);
 
   const handleUpgrade = async (planName: string) => {
     if (!user) return;
 
     try {
-      if (planName.toLowerCase() === 'free') {
+      if (planName.toLowerCase() === "free") {
         setLoading(true);
-        await updateDoc(doc(db, 'users', user.uid), {
+        await updateDoc(doc(db, "users", user.uid), {
           subscription: planName.toLowerCase(),
           updatedAt: new Date().toISOString(),
         });
-        
+
         setCurrentPlan(planName.toLowerCase());
         toast({
-          title: 'Success',
+          title: "Success",
           description: `Successfully switched to ${planName} plan`,
         });
         setLoading(false);
@@ -136,11 +103,11 @@ export default function SubscriptionPage() {
       setSelectedPlan(planName);
       setShowPayment(true);
     } catch (error: any) {
-      console.error('Upgrade error:', error);
+      console.error("Upgrade error:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to process upgrade. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to process upgrade. Please try again.",
+        variant: "destructive",
       });
       setLoading(false);
     }
@@ -148,7 +115,12 @@ export default function SubscriptionPage() {
 
   const getAmount = (planName: string) => {
     // Convert USD to LKR (approximate conversion rate)
-    const usdAmount = planName.toLowerCase() === 'premium' ? 4.99 : planName.toLowerCase() === 'business' ? 9.99 : 0;
+    const usdAmount =
+      planName.toLowerCase() === "premium"
+        ? 4.99
+        : planName.toLowerCase() === "business"
+        ? 9.99
+        : 0;
     // Convert to LKR and ensure it's a whole number (PayHere doesn't accept decimals)
     const lkrAmount = Math.ceil(usdAmount * 325); // Round up to nearest rupee
     return lkrAmount.toString();
@@ -164,48 +136,7 @@ export default function SubscriptionPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Subscription Warning */}
-      {subscriptionStatus && !subscriptionStatus.isActive && (
-        <Card className="p-4 bg-destructive/10 border-destructive">
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            <h3 className="font-semibold">Subscription Expired</h3>
-          </div>
-          <p className="mt-2 text-sm">
-            Your subscription has expired. Please renew to continue using premium features.
-          </p>
-        </Card>
-      )}
-
-      {/* Expiration Warning */}
-      {subscriptionStatus && subscriptionStatus.daysUntilExpiration !== null && 
-       subscriptionStatus.daysUntilExpiration <= 7 && 
-       subscriptionStatus.daysUntilExpiration > 0 && (
-        <Card className="p-4 bg-warning/10 border-warning">
-          <div className="flex items-center gap-2 text-warning">
-            <AlertTriangle className="h-5 w-5" />
-            <h3 className="font-semibold">Subscription Expiring Soon</h3>
-          </div>
-          <p className="mt-2 text-sm">
-            Your subscription will expire in {subscriptionStatus.daysUntilExpiration} days. 
-            Please renew to avoid service interruption.
-          </p>
-        </Card>
-      )}
-
-      {/* Suspension Warning */}
-      {subscriptionStatus?.isSuspended && (
-        <Card className="p-4 bg-destructive/10 border-destructive">
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            <h3 className="font-semibold">Account Suspended</h3>
-          </div>
-          <p className="mt-2 text-sm">
-            Your account has been suspended. Please contact support for assistance.
-          </p>
-        </Card>
-      )}
-
+      <SubscriptionWarnings subscriptionStatus={subscriptionStatus} />
       <div className="text-center">
         <h2 className="text-3xl font-bold">Subscription Plans</h2>
         <p className="text-muted-foreground mt-2">
@@ -219,8 +150,8 @@ export default function SubscriptionPage() {
             key={plan.name}
             className={`relative overflow-hidden ${
               currentPlan === plan.name.toLowerCase()
-                ? 'border-primary ring-2 ring-primary'
-                : ''
+                ? "border-primary ring-2 ring-primary"
+                : ""
             }`}
           >
             {currentPlan === plan.name.toLowerCase() && (
@@ -232,8 +163,10 @@ export default function SubscriptionPage() {
               <div>
                 <h3 className="text-xl font-bold">{plan.name}</h3>
                 <div className="mt-2">
-                  <p className="text-3xl font-bold text-primary">{plan.price}</p>
-                  {plan.name !== 'Free' && (
+                  <p className="text-3xl font-bold text-primary">
+                    {plan.price}
+                  </p>
+                  {plan.name !== "Free" && (
                     <p className="text-sm text-muted-foreground">
                       Rs. {getAmount(plan.name)} LKR/month
                     </p>
@@ -256,17 +189,19 @@ export default function SubscriptionPage() {
                       amount={parseInt(getAmount(plan.name))}
                       onSuccess={() => {
                         toast({
-                          title: 'Success',
-                          description: 'Payment processed successfully',
+                          title: "Success",
+                          description: "Payment processed successfully",
                         });
                         setShowPayment(false);
-                        loadSubscription();
+                        if (user) {
+                          dispatch(loadSubscription(user));
+                        }
                       }}
                       onError={(error) => {
                         toast({
-                          title: 'Error',
+                          title: "Error",
                           description: error,
-                          variant: 'destructive',
+                          variant: "destructive",
                         });
                       }}
                     />
@@ -282,14 +217,16 @@ export default function SubscriptionPage() {
                   <Button
                     className="w-full"
                     variant={
-                      currentPlan === plan.name.toLowerCase() ? 'outline' : 'default'
+                      currentPlan === plan.name.toLowerCase()
+                        ? "outline"
+                        : "default"
                     }
                     onClick={() => handleUpgrade(plan.name)}
                     disabled={currentPlan === plan.name.toLowerCase()}
                   >
                     {currentPlan === plan.name.toLowerCase()
-                      ? 'Current Plan'
-                      : 'Upgrade'}
+                      ? "Current Plan"
+                      : "Upgrade"}
                   </Button>
                 )}
               </div>
@@ -299,4 +236,4 @@ export default function SubscriptionPage() {
       </div>
     </div>
   );
-} 
+}

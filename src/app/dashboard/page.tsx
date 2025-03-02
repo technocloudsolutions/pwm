@@ -3,16 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -21,6 +12,9 @@ import { generatePassword } from "@/lib/utils";
 import { canAddPassword } from "@/lib/subscription";
 import { IPassword } from "../models/password";
 import { loadPasswords } from "@/lib/password";
+import { getSharedPasswords, SharedPassword } from "@/lib/password-sharing";
+import { Card } from "@/components/ui/card";
+import { Lock, Clock, Shield } from "lucide-react";
 
 interface PasswordGeneratorOptions {
   length: number;
@@ -56,6 +50,7 @@ export default function DashboardPage() {
       includeSymbols: true,
     });
   const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(true);
+  const [sharedWithMe, setSharedWithMe] = useState<SharedPassword[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -68,6 +63,7 @@ export default function DashboardPage() {
       if (user && !isSubscriptionExpired) {
         setLoading(true);
         setPasswords(await loadPasswords(user.uid));
+        setSharedWithMe(await getSharedPasswords(user.uid));
         setLoading(false);
       }
     };
@@ -87,7 +83,7 @@ export default function DashboardPage() {
     if (userDoc.exists()) {
       const userData = userDoc.data();
       if (userData?.lastPayment?.date) {
-        const lastPaymentDate = new Date(userData.lastPayment.date.toDate());
+        const lastPaymentDate = new Date(userData.lastPayment.date);
         const currentDate = new Date();
         const daysSinceLastPayment = Math.floor(
           (currentDate.getTime() - lastPaymentDate.getTime()) /
@@ -468,6 +464,43 @@ export default function DashboardPage() {
           <div className="text-center py-8 text-muted-foreground">
             Your subscription has expired. Please renew your plan to continue
             using the service.
+          </div>
+        )}
+
+        {sharedWithMe.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Shared with Me</h2>
+            <div className="space-y-4">
+              {sharedWithMe.map((share) => (
+                <Card key={share.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <Lock className="w-4 h-4" />
+                      <div>
+                        <p className="font-medium">
+                          Password ID: {share.passwordId}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Shared by: {share.sharedBy}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Shield
+                        className={`w-4 h-4 ${
+                          share.permissions === "write"
+                            ? "text-green-500"
+                            : "text-yellow-500"
+                        }`}
+                      />
+                      {share.expiresAt && (
+                        <Clock className="w-4 h-4 text-blue-500" />
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </div>

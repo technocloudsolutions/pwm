@@ -97,7 +97,8 @@ export const sharePassword = async (
 };
 
 export const getSharedPasswords = async (userId: string): Promise<SharedPassword[]> => {
-  // Get passwords shared with the user
+  try{
+    // Get passwords shared with the user
   const sharedQuery = query(
     collection(db, 'shared_passwords'),
     where('sharedWith', '==', userId)
@@ -112,6 +113,10 @@ export const getSharedPasswords = async (userId: string): Promise<SharedPassword
       ...doc.data()
     } as SharedPassword))
     .filter(share => !share.expiresAt || share.expiresAt > now);
+  } catch (error: any) {
+    console.error('Error getting shared passwords:', error);
+    return [];
+  }
 };
 
 export const getPasswordShares = async (userId: string): Promise<SharedPasswordWithDetails[]> => {

@@ -59,10 +59,16 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, loading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const branding = useSelector((state: RootState) => state.branding);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      signOut();
+    }
+  }, [user, signOut, loading]);
 
   useEffect(() => {
     const getBranding = async () => {
@@ -78,7 +84,7 @@ export default function DashboardLayout({
     };
 
     getBranding();
-  }, [user, dispatch]);
+  }, [dispatch]);
 
   if (!user || branding.loading) {
     return (

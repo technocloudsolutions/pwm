@@ -1,9 +1,9 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { AppThunk } from "./store";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { getSubscriptionStatus } from "@/lib/subscription";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { User } from "firebase/auth";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { AppThunk } from "./store";
 
 interface SubscriptionState {
   currentPlan: string;
@@ -73,6 +73,9 @@ export const loadSubscription =
       dispatch(setSubscriptionStatus(status));
     } catch (error: any) {
       console.error("Error loading subscription:", error);
+      if (error.code === "permission-denied") {
+        await auth.signOut(); // Log out the user
+      }
       dispatch(setError(error.message));
     } finally {
       dispatch(setLoading(false));

@@ -76,7 +76,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchPasswords = async () => {
-      if (user && !subscriptionStatus?.isActive) {
+      if (user && subscriptionStatus?.isActive) {
         setLoading(true);
         setPasswords(await loadPasswords(user.uid));
         setSharedWithMe(await getSharedPasswords(user.uid));

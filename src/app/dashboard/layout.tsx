@@ -84,7 +84,7 @@ export default function DashboardLayout({
     };
 
     getBranding();
-  }, [dispatch]);
+  }, [dispatch, user]);
 
   if (!user || branding.loading) {
     return (

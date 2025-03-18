@@ -28,6 +28,10 @@ export default function LoginPage() {
       });
       setIsLoggedIn(true);
     } catch (error: any) {
+      console.error("Error logging in:", error);
+      if (error.code === "permission-denied") {
+        await auth.signOut(); // Log out the user
+      }
       toast({
         title: "Error",
         description: error.message,

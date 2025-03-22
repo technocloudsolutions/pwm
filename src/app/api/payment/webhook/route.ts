@@ -1,6 +1,5 @@
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase-admin";
 import crypto from "crypto";
-import { collection, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { NextResponse } from "next/server";
 
 // Valid subscription plans
@@ -16,8 +15,8 @@ export async function POST(req: Request) {
     // Log incoming webhook data (excluding sensitive info)
     console.log("Webhook received:", {
       orderId: data.order_id,
-      amount: data.payhere_amount,
-      currency: data.payhere_currency,
+      amount: data.amount,
+      currency: data.currency,
       status: data.status_code,
     });
 
@@ -33,8 +32,8 @@ export async function POST(req: Request) {
     const orderedData = [
       merchantId,
       data.order_id,
-      data.payhere_amount,
-      data.payhere_currency,
+      data.amount,
+      data.currency,
       data.status_code,
       merchantSecret,
     ].join("");
@@ -61,8 +60,8 @@ export async function POST(req: Request) {
     }
 
     // Validate currency
-    if (!VALID_CURRENCIES.includes(data.payhere_currency)) {
-      console.error("Invalid currency:", data.payhere_currency);
+    if (!VALID_CURRENCIES.includes(data.currency)) {
+      console.error("Invalid currency:", data.currency);
       return NextResponse.json(
         {
           error: "Invalid currency",
@@ -121,10 +120,10 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
 
     // Check if user exists
-    const userRef = doc(db, "users", userId);
-    const userDoc = await getDoc(userRef);
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
 
-    if (!userDoc.exists()) {
+    if (!userDoc.exists) {
       console.error("User not found:", userId);
       return NextResponse.json(
         {
@@ -137,32 +136,32 @@ export async function POST(req: Request) {
 
     // Create payment document
     const paymentData = {
-      amount: Number(data.payhere_amount),
+      amount: Number(data.amount),
       createdAt: now,
       orderId: data.order_id,
       plan: subscriptionPlan,
       status: "succeeded",
       userId: userId,
       paymentReference: data.payment_id,
-      currency: data.payhere_currency,
+      currency: data.currency,
       paymentMethod: "payhere",
       metadata: {
-        payhere_payment_id: data.payment_id,
+        payment_id: data.payment_id,
         status_code: data.status_code,
         status_message: data.status_message,
       },
     };
 
-    await setDoc(doc(collection(db, "payments")), paymentData);
+    await db.collection("payments").add(paymentData);
 
     // Update user document
-    await updateDoc(userRef, {
+    await userRef.update({
       subscription: subscriptionPlan,
       subscriptionUpdatedAt: now,
       subscriptionExpiresAt: expirationDate.toISOString(),
       lastPayment: {
-        amount: Number(data.payhere_amount),
-        currency: data.payhere_currency,
+        amount: Number(data.amount),
+        currency: data.currency,
         date: now,
         orderId: data.order_id,
         paymentId: data.payment_id,

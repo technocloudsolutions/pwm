@@ -1,3 +1,4 @@
+import { auth } from "@/lib/firebase"; // Import auth for logging out
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface BrandingState {
@@ -17,7 +18,7 @@ const initialState: BrandingState = {
   logo: "/logo.svg",
   companyName: "BIGTIFY PASS",
   customDomain: "",
-  loading: true,
+  loading: false,
 };
 
 const updateColors = (state: BrandingState) => {
@@ -40,10 +41,18 @@ const brandingSlice = createSlice({
   initialState,
   reducers: {
     setBranding: (state, action: PayloadAction<Partial<BrandingState>>) => {
-      const logo = action.payload.logo ? action.payload.logo : "/logo.svg";
-      const newState = { ...state, ...action.payload, logo, loading: false };
-      updateColors(newState);
-      return newState;
+      try {
+        const logo = action.payload.logo ? action.payload.logo : "/logo.svg";
+        const newState = { ...state, ...action.payload, logo, loading: false };
+        updateColors(newState);
+        return newState;
+      } catch (error: any) {
+        console.error("Error setting branding:", error);
+        if (error.code === "permission-denied") {
+          auth.signOut(); // Log out the user
+        }
+        throw error;
+      }
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;

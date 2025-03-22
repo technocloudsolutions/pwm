@@ -62,6 +62,20 @@ const plans: Plan[] = [
   },
 ];
 
+type PlanType = "free" | "premium" | "business";
+const planHierarchy: Record<PlanType, number> = {
+  free: 0,
+  premium: 1,
+  business: 2,
+};
+
+// Helper function to determine if a plan is higher than the current plan
+const isHigherPlan = (currentPlan: string, targetPlan: string): boolean => {
+  const current = currentPlan.toLowerCase() as PlanType;
+  const target = targetPlan.toLowerCase() as PlanType;
+  return planHierarchy[target] > planHierarchy[current];
+};
+
 export default function SubscriptionPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -246,7 +260,8 @@ export default function SubscriptionPage() {
                       Cancel
                     </Button>
                   </>
-                ) : (
+                ) : currentPlan === plan.name.toLowerCase() ||
+                  isHigherPlan(currentPlan, plan.name) ? (
                   <Button
                     className="w-full"
                     variant={
@@ -261,7 +276,7 @@ export default function SubscriptionPage() {
                       ? "Current Plan"
                       : "Upgrade"}
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </Card>

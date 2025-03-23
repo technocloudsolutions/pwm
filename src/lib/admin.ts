@@ -1,9 +1,19 @@
-import { db } from './firebase';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, addDoc } from 'firebase/firestore';
-import { User } from 'firebase/auth';
-import { hasFeature } from './subscription';
-import { Team, TeamMember } from './team';
-import { ActivityLog } from './activity-logs';
+import { User } from "firebase/auth";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
+import { ActivityLog } from "./activity-logs";
+import { db } from "./firebase";
+import { hasFeature } from "./subscription";
+import { Team, TeamMember } from "./team";
 
 export interface AdminDashboardData {
   teamStats: {
@@ -32,8 +42,8 @@ export interface AdminDashboardData {
 export interface UserData {
   id: string;
   email: string;
-  role: 'user' | 'admin';
-  subscription: string;
+  role: "user" | "admin" | "superAdmin";
+  subscription: "free" | "premium" | "business";
   createdAt?: string;
   subscriptionExpiresAt?: string;
   isSuspended?: boolean;
@@ -48,35 +58,41 @@ interface ActivityLogData extends ActivityLog {
 
 // Get all users
 export const getUsers = async (admin: User): Promise<UserData[]> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
-  const usersQuery = query(collection(db, 'users'));
+  const usersQuery = query(collection(db, "users"));
   const userDocs = await getDocs(usersQuery);
-  
-  return userDocs.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  } as UserData));
+
+  return userDocs.docs.map(
+    (doc) =>
+      ({
+        id: doc.id,
+        ...doc.data(),
+      } as UserData)
+  );
 };
 
 // Get a single user
-export const getUser = async (admin: User, userId: string): Promise<UserData> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+export const getUser = async (
+  admin: User,
+  userId: string
+): Promise<UserData> => {
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
-  const userDoc = await getDoc(doc(db, 'users', userId));
+  const userDoc = await getDoc(doc(db, "users", userId));
   if (!userDoc.exists()) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
   return {
     id: userDoc.id,
-    ...userDoc.data()
+    ...userDoc.data(),
   } as UserData;
 };
 
@@ -87,38 +103,40 @@ export const updateUserSubscription = async (
   subscription: string,
   expiresAt?: string
 ): Promise<void> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
   const updateData: any = {
     subscription,
-    subscriptionUpdatedAt: new Date().toISOString()
+    subscriptionUpdatedAt: new Date().toISOString(),
   };
 
   // Set expiration date for paid plans
-  if (subscription !== 'free') {
+  if (subscription !== "free") {
     // Default to 30 days if not specified
-    const expiration = expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const expiration =
+      expiresAt ||
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     updateData.subscriptionExpiresAt = expiration;
   } else {
     // Remove expiration for free plan
     updateData.subscriptionExpiresAt = null;
   }
 
-  await updateDoc(doc(db, 'users', userId), updateData);
+  await updateDoc(doc(db, "users", userId), updateData);
 
   // Log the subscription update
-  await addDoc(collection(db, 'activity_logs'), {
+  await addDoc(collection(db, "activity_logs"), {
     userId,
-    action: 'subscription_updated',
+    action: "subscription_updated",
     details: {
       updatedBy: admin.uid,
       newSubscription: subscription,
-      expiresAt: updateData.subscriptionExpiresAt
+      expiresAt: updateData.subscriptionExpiresAt,
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };
 
@@ -126,15 +144,21 @@ export const updateUserSubscription = async (
 export const updateUserRole = async (
   admin: User,
   userId: string,
-  role: 'user' | 'admin'
+  role: "user" | "admin" | "superAdmin"
 ): Promise<void> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
-  await updateDoc(doc(db, 'users', userId), {
-    role
+  // Check if the current user is a super admin
+  const adminDoc = await getDoc(doc(db, "users", admin.uid));
+  if (!adminDoc.exists() || adminDoc.data().role !== "superAdmin") {
+    throw new Error("Only super admins can update user roles");
+  }
+
+  await updateDoc(doc(db, "users", userId), {
+    role,
   });
 };
 
@@ -144,13 +168,13 @@ export const toggleUserSuspension = async (
   userId: string,
   suspend: boolean
 ): Promise<void> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
   const updateData: any = {
-    isSuspended: suspend
+    isSuspended: suspend,
   };
 
   if (suspend) {
@@ -161,84 +185,102 @@ export const toggleUserSuspension = async (
     updateData.suspendedBy = null;
   }
 
-  await updateDoc(doc(db, 'users', userId), updateData);
+  await updateDoc(doc(db, "users", userId), updateData);
 
   // Log the suspension action
-  await addDoc(collection(db, 'activity_logs'), {
+  await addDoc(collection(db, "activity_logs"), {
     userId,
-    action: suspend ? 'account_suspended' : 'account_unsuspended',
+    action: suspend ? "account_suspended" : "account_unsuspended",
     details: {
-      updatedBy: admin.uid
+      updatedBy: admin.uid,
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 };
 
 // Delete user
-export const deleteUser = async (admin: User, userId: string): Promise<void> => {
-  const hasAccess = await hasFeature(admin, 'adminDashboard');
+export const deleteUser = async (
+  admin: User,
+  userId: string
+): Promise<void> => {
+  const hasAccess = await hasFeature(admin, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
   // Delete user's data
   const batch = writeBatch(db);
-  
+
   // Delete passwords
-  const passwordsQuery = query(collection(db, 'passwords'), where('userId', '==', userId));
+  const passwordsQuery = query(
+    collection(db, "passwords"),
+    where("userId", "==", userId)
+  );
   const passwordDocs = await getDocs(passwordsQuery);
-  passwordDocs.docs.forEach(doc => batch.delete(doc.ref));
+  passwordDocs.docs.forEach((doc) => batch.delete(doc.ref));
 
   // Delete personal info
-  const personalInfoQuery = query(collection(db, 'personal_info'), where('userId', '==', userId));
+  const personalInfoQuery = query(
+    collection(db, "personal_info"),
+    where("userId", "==", userId)
+  );
   const personalInfoDocs = await getDocs(personalInfoQuery);
-  personalInfoDocs.docs.forEach(doc => batch.delete(doc.ref));
+  personalInfoDocs.docs.forEach((doc) => batch.delete(doc.ref));
 
   // Delete user document
-  batch.delete(doc(db, 'users', userId));
+  batch.delete(doc(db, "users", userId));
 
   await batch.commit();
 };
 
 // Get admin dashboard data with subscription stats
-export const getAdminDashboardData = async (user: User): Promise<AdminDashboardData | null> => {
+export const getAdminDashboardData = async (
+  user: User
+): Promise<AdminDashboardData | null> => {
   // Check if user has admin dashboard access
-  const hasAccess = await hasFeature(user, 'adminDashboard');
+  const hasAccess = await hasFeature(user, "adminDashboard");
   if (!hasAccess) {
     return null;
   }
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const startOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1
+  ).toISOString();
 
   try {
     // Get all users
-    const usersQuery = query(collection(db, 'users'));
+    const usersQuery = query(collection(db, "users"));
     const userDocs = await getDocs(usersQuery);
-    const users = userDocs.docs.map(doc => ({ 
-      id: doc.id, 
-      ...doc.data() 
-    } as UserData));
+    const users = userDocs.docs.map(
+      (doc) =>
+        ({
+          id: doc.id,
+          ...doc.data(),
+        } as UserData)
+    );
 
     // Get all passwords
-    const passwordsQuery = query(collection(db, 'passwords'));
+    const passwordsQuery = query(collection(db, "passwords"));
     const passwordDocs = await getDocs(passwordsQuery);
     const passwords = passwordDocs.docs;
 
     // Get activity logs
     const activityQuery = query(
-      collection(db, 'activity_logs'),
-      where('timestamp', '>=', startOfMonth)
+      collection(db, "activity_logs"),
+      where("timestamp", ">=", startOfMonth)
     );
     const activityDocs = await getDocs(activityQuery);
-    const activities = activityDocs.docs.map(doc => {
+    const activities = activityDocs.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
         userId: data.userId,
         action: data.action,
         details: data.details || {},
-        timestamp: data.timestamp || new Date().toISOString()
+        timestamp: data.timestamp || new Date().toISOString(),
       } as ActivityLogData;
     });
 
@@ -249,28 +291,37 @@ export const getAdminDashboardData = async (user: User): Promise<AdminDashboardD
     }, {} as Record<string, number>);
 
     // Count shared passwords
-    const sharedPasswordsQuery = query(collection(db, 'shared_passwords'));
+    const sharedPasswordsQuery = query(collection(db, "shared_passwords"));
     const sharedPasswordsDocs = await getDocs(sharedPasswordsQuery);
 
     // Calculate subscription stats
-    const activeSubscriptions = users.filter(u => {
-      if (u.subscription === 'free') return !u.isSuspended;
-      return !u.isSuspended && u.subscriptionExpiresAt && new Date(u.subscriptionExpiresAt) > now;
+    const activeSubscriptions = users.filter((u) => {
+      if (u.subscription === "free") return !u.isSuspended;
+      return (
+        !u.isSuspended &&
+        u.subscriptionExpiresAt &&
+        new Date(u.subscriptionExpiresAt) > now
+      );
     });
 
-    const expiringSubscriptions = users.filter(u => {
-      if (u.subscription === 'free') return false;
+    const expiringSubscriptions = users.filter((u) => {
+      if (u.subscription === "free") return false;
       if (!u.subscriptionExpiresAt) return false;
-      const daysUntilExpiration = Math.ceil((new Date(u.subscriptionExpiresAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const daysUntilExpiration = Math.ceil(
+        (new Date(u.subscriptionExpiresAt).getTime() - now.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
       return daysUntilExpiration <= 7 && daysUntilExpiration > 0;
     });
 
-    const suspendedAccounts = users.filter(u => u.isSuspended);
+    const suspendedAccounts = users.filter((u) => u.isSuspended);
 
     // Calculate stats
-    const adminUsers = users.filter(u => u.role === 'admin');
-    const newUsers = users.filter(u => u.createdAt && u.createdAt >= startOfMonth);
-    const newPasswords = passwords.filter(doc => {
+    const adminUsers = users.filter((u) => u.role === "admin");
+    const newUsers = users.filter(
+      (u) => u.createdAt && u.createdAt >= startOfMonth
+    );
+    const newPasswords = passwords.filter((doc) => {
       const data = doc.data();
       return data.createdAt && data.createdAt >= startOfMonth;
     });
@@ -279,48 +330,54 @@ export const getAdminDashboardData = async (user: User): Promise<AdminDashboardD
       teamStats: {
         totalTeams: adminUsers.length,
         totalMembers: users.length,
-        teamsCreatedThisMonth: newUsers.length
+        teamsCreatedThisMonth: newUsers.length,
       },
       passwordStats: {
         totalPasswords: passwords.length,
         sharedPasswords: sharedPasswordsDocs.size,
-        passwordsCreatedThisMonth: newPasswords.length
+        passwordsCreatedThisMonth: newPasswords.length,
       },
       activityStats: {
         totalActivities: activityDocs.size,
         activitiesThisMonth: activities.length,
-        activityBreakdown
+        activityBreakdown,
       },
       subscriptionStats: {
         activeSubscriptions: activeSubscriptions.length,
         expiringSubscriptions: expiringSubscriptions.length,
-        suspendedAccounts: suspendedAccounts.length
+        suspendedAccounts: suspendedAccounts.length,
       },
       recentActivity: activities
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 10)
+        .sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )
+        .slice(0, 10),
     };
   } catch (error) {
-    console.error('Error getting admin dashboard data:', error);
+    console.error("Error getting admin dashboard data:", error);
     throw error;
   }
 };
 
-export const getTeamMembers = async (user: User, teamId: string): Promise<TeamMember[]> => {
+export const getTeamMembers = async (
+  user: User,
+  teamId: string
+): Promise<TeamMember[]> => {
   // Check if user has admin access
-  const hasAccess = await hasFeature(user, 'adminDashboard');
+  const hasAccess = await hasFeature(user, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
-  const teamDoc = await getDoc(doc(db, 'teams', teamId));
+  const teamDoc = await getDoc(doc(db, "teams", teamId));
   if (!teamDoc.exists()) {
-    throw new Error('Team not found');
+    throw new Error("Team not found");
   }
 
   const team = teamDoc.data() as Team;
-  if (!team.members.find(m => m.id === user.uid && m.role === 'admin')) {
-    throw new Error('Admin access required');
+  if (!team.members.find((m) => m.id === user.uid && m.role === "admin")) {
+    throw new Error("Admin access required");
   }
 
   return team.members;
@@ -328,29 +385,43 @@ export const getTeamMembers = async (user: User, teamId: string): Promise<TeamMe
 
 export const getTeamPasswords = async (user: User, teamId: string) => {
   // Check if user has admin access
-  const hasAccess = await hasFeature(user, 'adminDashboard');
+  const hasAccess = await hasFeature(user, "adminDashboard");
   if (!hasAccess) {
-    throw new Error('Admin access required');
+    throw new Error("Admin access required");
   }
 
-  const teamDoc = await getDoc(doc(db, 'teams', teamId));
+  const teamDoc = await getDoc(doc(db, "teams", teamId));
   if (!teamDoc.exists()) {
-    throw new Error('Team not found');
+    throw new Error("Team not found");
   }
 
   const team = teamDoc.data() as Team;
-  if (!team.members.find(m => m.id === user.uid && m.role === 'admin')) {
-    throw new Error('Admin access required');
+  if (!team.members.find((m) => m.id === user.uid && m.role === "admin")) {
+    throw new Error("Admin access required");
   }
 
   const passwordsQuery = query(
-    collection(db, 'passwords'),
-    where('teamId', '==', teamId)
+    collection(db, "passwords"),
+    where("teamId", "==", teamId)
   );
   const passwordDocs = await getDocs(passwordsQuery);
 
-  return passwordDocs.docs.map(doc => ({
+  return passwordDocs.docs.map((doc) => ({
     id: doc.id,
-    ...doc.data()
+    ...doc.data(),
   }));
-}; 
+};
+
+export async function getUserRole(user: User): Promise<UserData["role"]> {
+  if (!user) throw new Error("User not authenticated");
+
+  const userRef = doc(db, "users", user.uid);
+  const userDoc = await getDoc(userRef);
+
+  if (!userDoc.exists()) {
+    throw new Error("User not found");
+  }
+
+  const userData = userDoc.data() as UserData;
+  return userData.role;
+}

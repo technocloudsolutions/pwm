@@ -1,14 +1,15 @@
-import { User } from "firebase/auth";
+import { IPayment } from "@/app/models/payments";
 import { db } from "@/lib/firebase";
+import { User } from "firebase/auth";
 import {
   collection,
   doc,
   getDoc,
   getDocs,
+  orderBy,
   query,
   where,
 } from "firebase/firestore";
-import { IPayment } from "@/app/models/payments";
 
 export type SubscriptionTier = "free" | "premium" | "business";
 
@@ -221,7 +222,11 @@ export async function getSubscriptionHistory(
   if (!userId) return [];
 
   try {
-    const historyQuery = query(collection(db, "payments"), where("userId", "==", userId));
+    const historyQuery = query(
+      collection(db, "payments"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc")
+    );
     const historyDocs = await getDocs(historyQuery);
     return historyDocs.docs.map((doc) => {
       return {

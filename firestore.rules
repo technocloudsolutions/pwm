@@ -12,6 +12,11 @@ service cloud.firestore {
       return isSignedIn() && userDoc != null && userDoc.data.role == 'admin';
     }
 
+    function isSuperAdmin() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && userDoc != null && userDoc.data.role == 'superAdmin';
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -22,35 +27,35 @@ service cloud.firestore {
 
     function isNotSuspended() {
       let userDoc = getUserDoc();
-      return isAdmin() || (userDoc != null && !userDoc.data.isSuspended);
+      return isAdmin() || isSuperAdmin() || (userDoc != null && !userDoc.data.isSuspended);
     }
 
     function isSubscriptionValid() {
       let userDoc = getUserDoc();
-      return isAdmin() || true;
+      return isAdmin() || isSuperAdmin() || true;
     }
 
     function hasValidAccess() {
-      return isSignedIn() && (isAdmin() || (isNotSuspended() && isSubscriptionValid()));
+      return isSignedIn() && (isAdmin() || isSuperAdmin() || (isNotSuspended() && isSubscriptionValid()));
     }
 
     function hasSubscription(tier) {
       let userDoc = getUserDoc();
-      return isAdmin() || (userDoc != null && userDoc.data.subscription == tier);
+      return isAdmin() || isSuperAdmin() || (userDoc != null && userDoc.data.subscription == tier);
     }
 
     function hasPremiumOrBusiness() {
       let userDoc = getUserDoc();
-      return isAdmin() || (userDoc != null && 
+      return isAdmin() || isSuperAdmin() || (userDoc != null && 
         (userDoc.data.subscription == 'premium' || userDoc.data.subscription == 'business'));
     }
 
     function canAccessPremiumFeatures() {
-      return isSignedIn() && (isAdmin() || (hasValidAccess() && hasPremiumOrBusiness()));
+      return isSignedIn() && (isAdmin() || isSuperAdmin() || (hasValidAccess() && hasPremiumOrBusiness()));
     }
 
     function canAccessBusinessFeatures() {
-      return isSignedIn() && (isAdmin() || (hasValidAccess() && hasSubscription('business')));
+      return isSignedIn() && (isAdmin() || isSuperAdmin() || (hasValidAccess() && hasSubscription('business')));
     }
 
     // Users collection
@@ -62,77 +67,101 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['email', 'displayName', 'photoURL'])) || 
+        (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['role', 'subscription', 'isSuspended', 'subscriptionExpiresAt'])) ||
         (isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['role', 'subscription', 'isSuspended', 'subscriptionExpiresAt']))
+          .hasAny(['subscription', 'isSuspended', 'subscriptionExpiresAt']))
       ) || true; // Allow webhook to update
-      allow delete: if isAdmin();
+      allow delete: if isSuperAdmin();
 
       // Devices subcollection
       match /devices/{deviceId} {
-        allow read: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess()));
-        allow create: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess())) && 
+        allow read: if isSignedIn() && (isAdmin() || isSuperAdmin() || (isOwner(userId) && hasValidAccess()));
+        allow create: if isSignedIn() && (isAdmin() || isSuperAdmin() || (isOwner(userId) && hasValidAccess())) && 
           request.resource.data.keys().hasAll(['deviceName', 'lastActive', 'deviceId']);
-        allow update: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess())) && 
+        allow update: if isSignedIn() && (isAdmin() || isSuperAdmin() || (isOwner(userId) && hasValidAccess())) && 
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActive']);
-        allow delete: if isSignedIn() && (isAdmin() || (isOwner(userId) && hasValidAccess()));
+        allow delete: if isSignedIn() && (isAdmin() || isSuperAdmin() || (isOwner(userId) && hasValidAccess()));
       }
     }
 
     // Passwords collection
     match /passwords/{passwordId} {
-      allow read: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
       allow create: if hasValidAccess() && 
         request.resource.data.userId == request.auth.uid && 
         request.resource.data.keys().hasAll(['title', 'username', 'password', 'userId', 'createdAt']);
-      allow update: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
-      allow delete: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
     }
 
     // Personal Info collection
     match /personal_info/{infoId} {
-      allow read: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
       allow create: if hasValidAccess() && 
         request.resource.data.userId == request.auth.uid && 
         request.resource.data.keys().hasAll(['title', 'data', 'userId', 'createdAt']);
-      allow update: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
-      allow delete: if isAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
     }
 
     // Activity Logs collection
     match /activity_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if hasValidAccess() && 
-        request.resource.data.keys().hasAll(['userId', 'action', 'timestamp', 'details']);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && resource.data.userId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && request.resource.data.userId == request.auth.uid)
+      ) && request.resource.data.keys().hasAll(['userId', 'action', 'timestamp', 'details']);
+      allow update: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
     
     // Payments collection
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && resource.data.userId == request.auth.uid)
+      );
       allow create: if true; // Allow webhook to create payments
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
     
     // Branding Settings Logs collection
     match /branding_settings/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if isAdmin() || isSuperAdmin();
+      allow update: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
 
     // Shared Passwords collection
     match /shared_passwords/{shareId} {
-      allow read: if isAdmin() || (canAccessPremiumFeatures() && 
-        (resource.data.sharedBy == request.auth.uid || 
-         resource.data.sharedWith == request.auth.uid));
-      allow create: if canAccessPremiumFeatures() && 
-        request.resource.data.sharedBy == request.auth.uid && 
-        request.resource.data.keys().hasAll(['passwordId', 'sharedBy', 'sharedWith', 'createdAt']);
-      allow update: if isAdmin() || (canAccessPremiumFeatures() && resource.data.sharedBy == request.auth.uid);
-      allow delete: if isAdmin() || (canAccessPremiumFeatures() && resource.data.sharedBy == request.auth.uid);
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.sharedBy == request.auth.uid || 
+          resource.data.sharedWith == request.auth.uid
+        ))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && request.resource.data.sharedBy == request.auth.uid)
+      );
+      allow update: if isAdmin() || isSuperAdmin() || (
+        hasValidAccess() && resource.data.sharedBy == request.auth.uid
+      );
+      allow delete: if isAdmin() || isSuperAdmin() || (
+        hasValidAccess() && resource.data.sharedBy == request.auth.uid
+      );
     }
 
     // Teams collection
@@ -155,6 +184,69 @@ service cloud.firestore {
         allow write: if isAdmin() || (canAccessBusinessFeatures() && 
           get(/databases/$(database)/documents/teams/$(teamId)).data.members[request.auth.uid].role == 'admin');
       }
+    }
+
+    // Support Tickets collection
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && resource.data.userId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && request.resource.data.userId == request.auth.uid)
+      ) && request.resource.data.keys().hasAll([
+        'userId', 
+        'subject', 
+        'description', 
+        'status', 
+        'priority', 
+        'category', 
+        'createdAt'
+      ]);
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']) && 
+           resource.data.userId == request.auth.uid)
+        ))
+      ) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'priority', 'description', 'updatedAt'])
+      );
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // Ticket Comments collection
+    match /ticket_comments/{commentId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/support_tickets/$(resource.data.ticketId)).data.userId == request.auth.uid
+        ))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/support_tickets/$(request.resource.data.ticketId)).data.userId == request.auth.uid
+        ))
+      ) && request.resource.data.keys().hasAll([
+        'ticketId',
+        'userId',
+        'userEmail',
+        'content',
+        'createdAt',
+        'isStaff'
+      ]);
+      allow update: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
   }
 }

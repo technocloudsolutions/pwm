@@ -1,15 +1,20 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
-import { auth, db } from "./firebase";
+import {
+  User,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useState } from "react";
+import { auth, db } from "./firebase";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -17,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isAdmin: false,
+  isSuperAdmin: false,
   signOut: async () => {},
 });
 
@@ -24,37 +30,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(true);
-      
+
       if (user) {
         // Subscribe to user document changes
         const userRef = doc(db, "users", user.uid);
-        const unsubscribeDoc = onSnapshot(userRef, (doc) => {
-          if (doc.exists()) {
-            const userData = doc.data();
-            console.log('User data updated:', userData);
-            setIsAdmin(userData.role === "admin");
-          } else {
-            console.log('User document does not exist');
+        const unsubscribeDoc = onSnapshot(
+          userRef,
+          (doc) => {
+            if (doc.exists()) {
+              const userData = doc.data();
+              console.log("User data updated:", userData);
+              setIsAdmin(userData.role === "admin");
+              setIsSuperAdmin(userData.role === "superAdmin");
+            } else {
+              console.log("User document does not exist");
+              setIsAdmin(false);
+              setIsSuperAdmin(false);
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Error listening to user document:", error);
             setIsAdmin(false);
+            setIsSuperAdmin(false);
+            setLoading(false);
           }
-          setLoading(false);
-        }, (error) => {
-          console.error("Error listening to user document:", error);
-          setIsAdmin(false);
-          setLoading(false);
-        });
+        );
 
         return () => {
           unsubscribeDoc();
         };
       } else {
         setIsAdmin(false);
+        setIsSuperAdmin(false);
         setLoading(false);
       }
     });
@@ -67,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await firebaseSignOut(auth);
       setUser(null);
       setIsAdmin(false);
+      setIsSuperAdmin(false);
       router.push("/auth/login");
     } catch (error) {
       console.error("Error signing out:", error);
@@ -74,10 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, signOut }}>
+    <AuthContext.Provider
+      value={{ user, loading, isAdmin, isSuperAdmin, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext); 
+export const useAuth = () => useContext(AuthContext);

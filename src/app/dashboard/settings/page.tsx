@@ -1,16 +1,16 @@
 "use client";
 
-import { DeviceManagement } from "@/components/DeviceManagement";
-import { TeamManagement } from "@/components/TeamManagement";
-import { SupportTickets } from "@/components/SupportTickets";
-import { CustomBranding } from "@/components/CustomBranding";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Laptop, Users, MessageSquare, Palette, Lock } from "lucide-react";
-import { useEffect, useState } from "react";
 import { PasswordSharing } from "@/components";
-import { useAuth } from "@/lib/auth-context";
+import { CustomBranding } from "@/components/CustomBranding";
+import { DeviceManagement } from "@/components/DeviceManagement";
+import { SupportTickets } from "@/components/SupportTickets";
+import { TeamManagement } from "@/components/TeamManagement";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import { getUserSubscription } from "@/lib/subscription";
+import { Lock, MessageSquare, Palette, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -41,10 +41,10 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="devices" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="devices" className="flex items-center gap-2">
+          {/* <TabsTrigger value="devices" className="flex items-center gap-2">
             <Laptop className="h-4 w-4" />
             Devices
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger
             value="password-sharing"
             className="flex items-center gap-2"

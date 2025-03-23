@@ -1,8 +1,11 @@
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ActivityLog } from "@/lib/activity-logs";
 import { Calendar } from "lucide-react";
 import { useState } from "react";
+
+const ITEMS_PER_PAGE = 5;
 
 interface ActivityLogsProps {
   activities: ActivityLog[];
@@ -12,6 +15,7 @@ export function ActivityLogs({ activities }: ActivityLogsProps) {
   const [dateFilter, setDateFilter] = useState<string>("");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const uniqueActions = Array.from(new Set(activities.map((a) => a.action)));
 
@@ -30,6 +34,16 @@ export function ActivityLogs({ activities }: ActivityLogsProps) {
 
     return matchesDate && matchesAction && matchesSearch;
   });
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(filteredActivities.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentItems = filteredActivities.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -82,7 +96,10 @@ export function ActivityLogs({ activities }: ActivityLogsProps) {
             <Input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when filter changes
+              }}
               className="w-40"
               min={start}
               max={end}
@@ -90,7 +107,10 @@ export function ActivityLogs({ activities }: ActivityLogsProps) {
             <select
               className="border rounded px-2 py-1"
               value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
+              onChange={(e) => {
+                setActionFilter(e.target.value);
+                setCurrentPage(1); // Reset to first page when filter changes
+              }}
             >
               <option value="all">All Actions</option>
               {uniqueActions.map((action) => (
@@ -105,46 +125,93 @@ export function ActivityLogs({ activities }: ActivityLogsProps) {
             <Input
               placeholder="Search activities..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1); // Reset to first page when search changes
+              }}
               className="w-60"
             />
           </div>
         </div>
 
         <div className="space-y-4">
-          {filteredActivities.length > 0 ? (
-            filteredActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p
-                      className={`font-medium ${getActionColor(
-                        activity.action
-                      )}`}
-                    >
-                      {activity.action
-                        .split("_")
-                        .map(
-                          (word) => word.charAt(0).toUpperCase() + word.slice(1)
-                        )
-                        .join(" ")}
-                    </p>
-                    {activity.details && (
-                      <pre className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
-                        {JSON.stringify(activity.details, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    {formatTimestamp(activity.timestamp)}
+          {currentItems.length > 0 ? (
+            <>
+              {currentItems.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p
+                        className={`font-medium ${getActionColor(
+                          activity.action
+                        )}`}
+                      >
+                        {activity.action
+                          .split("_")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ")}
+                      </p>
+                      {activity.details && (
+                        <pre className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                          {JSON.stringify(activity.details, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      {formatTimestamp(activity.timestamp)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-between items-center mt-6">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to{" "}
+                    {Math.min(endIndex, filteredActivities.length)} of{" "}
+                    {filteredActivities.length} entries
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (page) => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(page)}
+                        >
+                          {page}
+                        </Button>
+                      )
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               No activities found matching the current filters.

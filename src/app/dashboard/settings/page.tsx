@@ -2,7 +2,6 @@
 
 import { PasswordSharing } from "@/components";
 import { CustomBranding } from "@/components/CustomBranding";
-import { DeviceManagement } from "@/components/DeviceManagement";
 import { SupportTickets } from "@/components/SupportTickets";
 import { TeamManagement } from "@/components/TeamManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,7 +38,7 @@ export default function SettingsPage() {
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold">Settings</h1>
 
-      <Tabs defaultValue="devices" className="space-y-6">
+      <Tabs defaultValue="password-sharing" className="space-y-6">
         <TabsList>
           {/* <TabsTrigger value="devices" className="flex items-center gap-2">
             <Laptop className="h-4 w-4" />
@@ -66,9 +65,9 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="devices">
+        {/* <TabsContent value="devices">
           <DeviceManagement />
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="password-sharing">
           {subscription === "premium" || subscription === "business" ? (

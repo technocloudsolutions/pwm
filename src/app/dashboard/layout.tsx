@@ -29,27 +29,31 @@ const navigation = [
     name: "Dashboard",
     href: "/dashboard",
     icon: Home,
+    hideForSuperAdmin: true,
   },
   {
     name: "Personal Info",
     href: "/dashboard/personal-info",
     icon: User,
+    hideForSuperAdmin: true,
   },
   {
     name: "Subscription",
     href: "/dashboard/subscription",
     icon: CreditCard,
+    hideForSuperAdmin: true,
   },
   {
     name: "Settings",
     href: "/dashboard/settings",
     icon: Settings,
+    hideForSuperAdmin: true,
   },
   {
     name: "Admin Dashboard",
     href: "/dashboard/admin",
     icon: Shield,
-    adminOnly: true,
+    superAdminOnly: true,
   },
 ];
 
@@ -59,7 +63,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, signOut, isAdmin, loading } = useAuth();
+  const { user, signOut, isAdmin, loading, isSuperAdmin } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   const branding = useSelector((state: RootState) => state.branding);
@@ -151,7 +155,10 @@ export default function DashboardLayout({
           <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {navigation.map((item) => {
-                if (item.adminOnly && !isAdmin) {
+                if (item.superAdminOnly && !isSuperAdmin) {
+                  return null;
+                }
+                if (item.hideForSuperAdmin && isSuperAdmin) {
                   return null;
                 }
 
@@ -225,7 +232,10 @@ export default function DashboardLayout({
           </div>
           <nav className="mt-6 space-y-1">
             {navigation.map((item) => {
-              if (item.adminOnly && !isAdmin) {
+              if (item.superAdminOnly && !isSuperAdmin) {
+                return null;
+              }
+              if (item.hideForSuperAdmin && isSuperAdmin) {
                 return null;
               }
 

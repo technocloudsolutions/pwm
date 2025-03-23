@@ -184,7 +184,6 @@ export async function addTicketComment(
     // Check if user is super admin
     const userRole = await getUserRole(user);
     const isStaff = userRole === "superAdmin";
-    console.log(userRole);
 
     const commentId = `comment_${Date.now()}`;
     const commentRef = doc(db, "ticket_comments", commentId);

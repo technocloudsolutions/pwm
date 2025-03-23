@@ -65,6 +65,7 @@ export function SupportTickets() {
     if (!user) return;
 
     try {
+      setTicketComments([]);
       const comments = await getTicketComments(user, ticketId);
       setTicketComments(comments);
     } catch (error: any) {

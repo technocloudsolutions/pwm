@@ -209,29 +209,44 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         isAdmin() || 
         isSuperAdmin() || 
-        (hasValidAccess() && resource.data.userId == request.auth.uid)
-      ) && request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['status', 'priority', 'description']);
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']) && 
+           resource.data.userId == request.auth.uid)
+        ))
+      ) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'priority', 'description', 'updatedAt'])
+      );
       allow delete: if isAdmin() || isSuperAdmin();
+    }
 
-      // Support Ticket Comments subcollection
-      match /comments/{commentId} {
-        allow read: if isSignedIn() && (
-          isAdmin() || 
-          isSuperAdmin() || 
-          (hasValidAccess() && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid)
-        );
-        allow create: if isSignedIn() && (
-          isAdmin() || 
-          isSuperAdmin() || 
-          (hasValidAccess() && (
-            get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid ||
-            get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.status != 'closed'
-          ))
-        ) && request.resource.data.keys().hasAll(['content', 'userId', 'createdAt']);
-        allow update: if isAdmin() || isSuperAdmin();
-        allow delete: if isAdmin() || isSuperAdmin();
-      }
+    // Ticket Comments collection
+    match /ticket_comments/{commentId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/support_tickets/$(resource.data.ticketId)).data.userId == request.auth.uid
+        ))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isSuperAdmin() || 
+        (hasValidAccess() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/support_tickets/$(request.resource.data.ticketId)).data.userId == request.auth.uid
+        ))
+      ) && request.resource.data.keys().hasAll([
+        'ticketId',
+        'userId',
+        'userEmail',
+        'content',
+        'createdAt',
+        'isStaff'
+      ]);
+      allow update: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
   }
 }

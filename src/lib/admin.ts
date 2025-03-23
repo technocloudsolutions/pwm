@@ -43,7 +43,7 @@ export interface UserData {
   id: string;
   email: string;
   role: "user" | "admin" | "superAdmin";
-  subscription: string;
+  subscription: "free" | "premium" | "business";
   createdAt?: string;
   subscriptionExpiresAt?: string;
   isSuspended?: boolean;
@@ -411,3 +411,17 @@ export const getTeamPasswords = async (user: User, teamId: string) => {
     ...doc.data(),
   }));
 };
+
+export async function getUserRole(user: User): Promise<UserData["role"]> {
+  if (!user) throw new Error("User not authenticated");
+
+  const userRef = doc(db, "users", user.uid);
+  const userDoc = await getDoc(userRef);
+
+  if (!userDoc.exists()) {
+    throw new Error("User not found");
+  }
+
+  const userData = userDoc.data() as UserData;
+  return userData.role;
+}

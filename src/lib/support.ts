@@ -3,6 +3,7 @@ import { User } from "firebase/auth";
 import {
   collection,
   doc,
+  FirestoreError,
   getDoc,
   getDocs,
   orderBy,
@@ -11,6 +12,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { getUserRole } from "./admin";
 import { getUserSubscription } from "./subscription";
 
 export interface SupportTicket {
@@ -38,54 +40,102 @@ export interface TicketComment {
   isStaff: boolean;
 }
 
+export class SupportError extends Error {
+  constructor(message: string, public code?: string) {
+    super(message);
+    this.name = "SupportError";
+  }
+}
+
+function handleFirestoreError(error: any): never {
+  if (error instanceof FirestoreError) {
+    switch (error.code) {
+      case "permission-denied":
+        throw new SupportError(
+          "You do not have permission to perform this action",
+          "PERMISSION_DENIED"
+        );
+      case "not-found":
+        throw new SupportError(
+          "The requested resource was not found",
+          "NOT_FOUND"
+        );
+      case "unavailable":
+        throw new SupportError(
+          "The service is currently unavailable. Please try again later",
+          "SERVICE_UNAVAILABLE"
+        );
+      case "already-exists":
+        throw new SupportError(
+          "A resource with this ID already exists",
+          "ALREADY_EXISTS"
+        );
+      default:
+        throw new SupportError("An unexpected error occurred", "UNKNOWN_ERROR");
+    }
+  }
+  throw error;
+}
+
 export async function createSupportTicket(
   user: User,
   subject: string,
   description: string,
   category: string
 ): Promise<string> {
-  if (!user) throw new Error("User not authenticated");
+  if (!user)
+    throw new SupportError("User not authenticated", "NOT_AUTHENTICATED");
+  if (!subject.trim())
+    throw new SupportError("Subject is required", "INVALID_INPUT");
+  if (!description.trim())
+    throw new SupportError("Description is required", "INVALID_INPUT");
+  if (!category.trim())
+    throw new SupportError("Category is required", "INVALID_INPUT");
 
-  const subscription = await getUserSubscription(user);
-  const priority =
-    subscription === "business"
-      ? "high"
-      : subscription === "premium"
-      ? "medium"
-      : "low";
+  try {
+    const subscription = await getUserSubscription(user);
+    const priority =
+      subscription === "business"
+        ? "high"
+        : subscription === "premium"
+        ? "medium"
+        : "low";
 
-  const ticketId = `ticket_${Date.now()}`;
-  const ticketRef = doc(db, "support_tickets", ticketId);
+    const ticketId = `ticket_${Date.now()}`;
+    const ticketRef = doc(db, "support_tickets", ticketId);
 
-  const ticket: Omit<SupportTicket, "id"> = {
-    userId: user.uid,
-    userEmail: user.email!,
-    subject,
-    description,
-    status: "open",
-    priority,
-    category,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+    const ticket: Omit<SupportTicket, "id"> = {
+      userId: user.uid,
+      userEmail: user.email!,
+      subject: subject.trim(),
+      description: description.trim(),
+      status: "open",
+      priority,
+      category: category.trim(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-  await setDoc(ticketRef, ticket);
-  return ticketId;
+    await setDoc(ticketRef, ticket);
+    return ticketId;
+  } catch (error) {
+    handleFirestoreError(error);
+  }
 }
 
 export async function getUserTickets(user: User): Promise<SupportTicket[]> {
-  if (!user) return [];
-
-  const ticketsRef = collection(db, "support_tickets");
-  const q = query(
-    ticketsRef,
-    where("userId", "==", user.uid),
-    orderBy("createdAt", "desc")
-  );
+  if (!user)
+    throw new SupportError("User not authenticated", "NOT_AUTHENTICATED");
 
   try {
-    const snapshot = await getDocs(q);
+    const ticketsRef = collection(db, "support_tickets");
+    const q = query(
+      ticketsRef,
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
 
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(
       (doc) =>
         ({
@@ -94,8 +144,7 @@ export async function getUserTickets(user: User): Promise<SupportTicket[]> {
         } as SupportTicket)
     );
   } catch (error) {
-    console.error("Error fetching user tickets:", error);
-    return [];
+    handleFirestoreError(error);
   }
 }
 
@@ -104,74 +153,106 @@ export async function addTicketComment(
   ticketId: string,
   content: string
 ): Promise<string> {
-  if (!user) throw new Error("User not authenticated");
+  if (!user)
+    throw new SupportError("User not authenticated", "NOT_AUTHENTICATED");
+  if (!content.trim())
+    throw new SupportError("Comment content is required", "INVALID_INPUT");
 
-  const ticketRef = doc(db, "support_tickets", ticketId);
-  const ticketDoc = await getDoc(ticketRef);
+  try {
+    const ticketRef = doc(db, "support_tickets", ticketId);
+    const ticketDoc = await getDoc(ticketRef);
 
-  if (!ticketDoc.exists()) {
-    throw new Error("Ticket not found");
+    if (!ticketDoc.exists()) {
+      throw new SupportError("Ticket not found", "NOT_FOUND");
+    }
+
+    const ticket = ticketDoc.data() as SupportTicket;
+    if (ticket.status === "closed") {
+      throw new SupportError(
+        "Cannot add comments to a closed ticket",
+        "TICKET_CLOSED"
+      );
+    }
+
+    if (ticket.userId !== user.uid) {
+      throw new SupportError(
+        "Unauthorized to comment on this ticket",
+        "UNAUTHORIZED"
+      );
+    }
+
+    // Check if user is super admin
+    const userRole = await getUserRole(user);
+    const isStaff = userRole === "superAdmin";
+    console.log(userRole);
+
+    const commentId = `comment_${Date.now()}`;
+    const commentRef = doc(db, "ticket_comments", commentId);
+
+    const comment: TicketComment = {
+      id: commentId,
+      ticketId,
+      userId: user.uid,
+      userEmail: user.email!,
+      content: content.trim(),
+      createdAt: new Date().toISOString(),
+      isStaff,
+    };
+
+    await setDoc(commentRef, comment);
+    await updateDoc(ticketRef, {
+      updatedAt: new Date().toISOString(),
+    });
+
+    return commentId;
+  } catch (error) {
+    handleFirestoreError(error);
   }
-
-  const ticket = ticketDoc.data() as SupportTicket;
-  if (ticket.userId !== user.uid) {
-    throw new Error("Unauthorized to comment on this ticket");
-  }
-
-  const commentId = `comment_${Date.now()}`;
-  const commentRef = doc(db, "ticket_comments", commentId);
-
-  const comment: TicketComment = {
-    id: commentId,
-    ticketId,
-    userId: user.uid,
-    userEmail: user.email!,
-    content,
-    createdAt: new Date().toISOString(),
-    isStaff: false,
-  };
-
-  await setDoc(commentRef, comment);
-  await updateDoc(ticketRef, {
-    updatedAt: new Date().toISOString(),
-  });
-
-  return commentId;
 }
 
 export async function getTicketComments(
   user: User,
   ticketId: string
 ): Promise<TicketComment[]> {
-  if (!user) return [];
+  if (!user)
+    throw new SupportError("User not authenticated", "NOT_AUTHENTICATED");
 
-  const ticketRef = doc(db, "support_tickets", ticketId);
-  const ticketDoc = await getDoc(ticketRef);
+  try {
+    const ticketRef = doc(db, "support_tickets", ticketId);
+    const ticketDoc = await getDoc(ticketRef);
 
-  if (!ticketDoc.exists()) {
-    throw new Error("Ticket not found");
+    if (!ticketDoc.exists()) {
+      throw new SupportError("Ticket not found", "NOT_FOUND");
+    }
+
+    const ticket = ticketDoc.data() as SupportTicket;
+    if (ticket.userId !== user.uid) {
+      throw new SupportError(
+        "Unauthorized to view ticket comments",
+        "UNAUTHORIZED"
+      );
+    }
+
+    const commentsRef = collection(db, "ticket_comments");
+    const q = query(
+      commentsRef,
+      where("ticketId", "==", ticketId),
+      orderBy("createdAt", "asc")
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(
+      (doc) =>
+        ({
+          id: doc.id,
+          ...doc.data(),
+        } as TicketComment)
+    );
+  } catch (error) {
+    console.log(error);
+
+    handleFirestoreError(error);
   }
-
-  const ticket = ticketDoc.data() as SupportTicket;
-  if (ticket.userId !== user.uid) {
-    throw new Error("Unauthorized to view ticket comments");
-  }
-
-  const commentsRef = collection(db, "ticket_comments");
-  const q = query(
-    commentsRef,
-    where("ticketId", "==", ticketId),
-    orderBy("createdAt", "asc")
-  );
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map(
-    (doc) =>
-      ({
-        id: doc.id,
-        ...doc.data(),
-      } as TicketComment)
-  );
 }
 
 export async function updateTicketStatus(
@@ -179,22 +260,33 @@ export async function updateTicketStatus(
   ticketId: string,
   status: SupportTicket["status"]
 ): Promise<void> {
-  if (!user) throw new Error("User not authenticated");
-
-  const ticketRef = doc(db, "support_tickets", ticketId);
-  const ticketDoc = await getDoc(ticketRef);
-
-  if (!ticketDoc.exists()) {
-    throw new Error("Ticket not found");
+  if (!user)
+    throw new SupportError("User not authenticated", "NOT_AUTHENTICATED");
+  if (!["open", "in_progress", "resolved", "closed"].includes(status)) {
+    throw new SupportError("Invalid ticket status", "INVALID_STATUS");
   }
 
-  const ticket = ticketDoc.data() as SupportTicket;
-  if (ticket.userId !== user.uid) {
-    throw new Error("Unauthorized to update ticket status");
-  }
+  try {
+    const ticketRef = doc(db, "support_tickets", ticketId);
+    const ticketDoc = await getDoc(ticketRef);
 
-  await updateDoc(ticketRef, {
-    status,
-    updatedAt: new Date().toISOString(),
-  });
+    if (!ticketDoc.exists()) {
+      throw new SupportError("Ticket not found", "NOT_FOUND");
+    }
+
+    const ticket = ticketDoc.data() as SupportTicket;
+    if (ticket.userId !== user.uid) {
+      throw new SupportError(
+        "Unauthorized to update ticket status",
+        "UNAUTHORIZED"
+      );
+    }
+
+    await updateDoc(ticketRef, {
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error);
+  }
 }

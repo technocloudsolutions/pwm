@@ -1,20 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/lib/auth-context";
 import {
   SupportTicket,
   TicketComment,
-  createSupportTicket,
-  getUserTickets,
   addTicketComment,
+  createSupportTicket,
   getTicketComments,
-  updateTicketStatus
-} from '@/lib/support';
-import { MessageSquare, Send, RefreshCw } from 'lucide-react';
+  getUserTickets,
+  updateTicketStatus,
+} from "@/lib/support";
+import { MessageSquare, RefreshCw, Send } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export function SupportTickets() {
   const { user } = useAuth();
@@ -22,14 +22,16 @@ export function SupportTickets() {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
+    null
+  );
   const [ticketComments, setTicketComments] = useState<TicketComment[]>([]);
   const [newTicket, setNewTicket] = useState({
-    subject: '',
-    description: '',
-    category: 'general'
+    subject: "",
+    description: "",
+    category: "general",
   });
-  const [newComment, setNewComment] = useState('');
+  const [newComment, setNewComment] = useState("");
 
   useEffect(() => {
     loadTickets();
@@ -50,9 +52,9 @@ export function SupportTickets() {
       setTickets(userTickets);
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to load tickets',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to load tickets",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -67,15 +69,16 @@ export function SupportTickets() {
       setTicketComments(comments);
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to load comments',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to load comments",
+        variant: "destructive",
       });
     }
   };
 
   const handleCreateTicket = async () => {
-    if (!user || !newTicket.subject.trim() || !newTicket.description.trim()) return;
+    if (!user || !newTicket.subject.trim() || !newTicket.description.trim())
+      return;
 
     try {
       await createSupportTicket(
@@ -85,17 +88,17 @@ export function SupportTickets() {
         newTicket.category
       );
       toast({
-        title: 'Success',
-        description: 'Support ticket created successfully',
+        title: "Success",
+        description: "Support ticket created successfully",
       });
-      setNewTicket({ subject: '', description: '', category: 'general' });
+      setNewTicket({ subject: "", description: "", category: "general" });
       setShowNewTicket(false);
       loadTickets();
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to create ticket',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to create ticket",
+        variant: "destructive",
       });
     }
   };
@@ -106,55 +109,67 @@ export function SupportTickets() {
     try {
       await addTicketComment(user, selectedTicket.id, newComment.trim());
       toast({
-        title: 'Success',
-        description: 'Comment added successfully',
+        title: "Success",
+        description: "Comment added successfully",
       });
-      setNewComment('');
+      setNewComment("");
       loadComments(selectedTicket.id);
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to add comment',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to add comment",
+        variant: "destructive",
       });
     }
   };
 
-  const handleUpdateStatus = async (ticketId: string, status: SupportTicket['status']) => {
+  const handleUpdateStatus = async (
+    ticketId: string,
+    status: SupportTicket["status"]
+  ) => {
     if (!user) return;
 
     try {
       await updateTicketStatus(user, ticketId, status);
       toast({
-        title: 'Success',
-        description: 'Ticket status updated successfully',
+        title: "Success",
+        description: "Ticket status updated successfully",
       });
       loadTickets();
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to update ticket status',
-        variant: 'destructive',
+        title: "Error",
+        description: error.message || "Failed to update ticket status",
+        variant: "destructive",
       });
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'text-red-500';
-      case 'high': return 'text-orange-500';
-      case 'medium': return 'text-yellow-500';
-      default: return 'text-green-500';
+      case "urgent":
+        return "text-red-500";
+      case "high":
+        return "text-orange-500";
+      case "medium":
+        return "text-yellow-500";
+      default:
+        return "text-green-500";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-green-100 text-green-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'resolved': return 'bg-gray-100 text-gray-800';
-      case 'closed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "open":
+        return "bg-green-100 text-green-800";
+      case "in_progress":
+        return "bg-blue-100 text-blue-800";
+      case "resolved":
+        return "bg-gray-100 text-gray-800";
+      case "closed":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -191,18 +206,24 @@ export function SupportTickets() {
               <Input
                 placeholder="Subject"
                 value={newTicket.subject}
-                onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
+                onChange={(e) =>
+                  setNewTicket({ ...newTicket, subject: e.target.value })
+                }
               />
               <Textarea
                 placeholder="Description"
                 value={newTicket.description}
-                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                onChange={(e) =>
+                  setNewTicket({ ...newTicket, description: e.target.value })
+                }
                 rows={4}
               />
               <select
                 className="w-full border rounded-md p-2"
                 value={newTicket.category}
-                onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
+                onChange={(e) =>
+                  setNewTicket({ ...newTicket, category: e.target.value })
+                }
               >
                 <option value="general">General</option>
                 <option value="technical">Technical</option>
@@ -215,7 +236,11 @@ export function SupportTickets() {
                   variant="ghost"
                   onClick={() => {
                     setShowNewTicket(false);
-                    setNewTicket({ subject: '', description: '', category: 'general' });
+                    setNewTicket({
+                      subject: "",
+                      description: "",
+                      category: "general",
+                    });
                   }}
                 >
                   Cancel
@@ -233,42 +258,56 @@ export function SupportTickets() {
         ) : (
           <div className="space-y-4">
             {tickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className="border rounded-lg p-4 space-y-4"
-              >
+              <div key={ticket.id} className="border rounded-lg p-4 space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-lg font-semibold">{ticket.subject}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {ticket.category} • Created {new Date(ticket.createdAt).toLocaleString()}
+                      {ticket.category} • Created{" "}
+                      {new Date(ticket.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(ticket.status)}`}>
-                      {ticket.status.replace('_', ' ').toUpperCase()}
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${getStatusColor(
+                        ticket.status
+                      )}`}
+                    >
+                      {ticket.status.replace("_", " ").toUpperCase()}
                     </span>
-                    <span className={`text-sm font-medium ${getPriorityColor(ticket.priority)}`}>
+                    <span
+                      className={`text-sm font-medium ${getPriorityColor(
+                        ticket.priority
+                      )}`}
+                    >
                       {ticket.priority.toUpperCase()}
                     </span>
                   </div>
                 </div>
 
-                <p className="text-sm whitespace-pre-wrap">{ticket.description}</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {ticket.description}
+                </p>
 
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSelectedTicket(ticket === selectedTicket ? null : ticket)}
+                    onClick={() =>
+                      setSelectedTicket(
+                        ticket === selectedTicket ? null : ticket
+                      )
+                    }
                   >
-                    {ticket === selectedTicket ? 'Hide Comments' : 'Show Comments'}
+                    {ticket === selectedTicket
+                      ? "Hide Comments"
+                      : "Show Comments"}
                   </Button>
-                  {ticket.status !== 'closed' && (
+                  {ticket.status !== "closed" && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleUpdateStatus(ticket.id, 'closed')}
+                      onClick={() => handleUpdateStatus(ticket.id, "closed")}
                     >
                       Close Ticket
                     </Button>
@@ -285,14 +324,16 @@ export function SupportTickets() {
                           <div
                             key={comment.id}
                             className={`p-3 rounded-lg ${
-                              comment.isStaff ? 'bg-blue-50' : 'bg-gray-50'
+                              comment.isStaff ? "staff-comment" : "user-comment"
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               <p className="text-sm font-medium">
                                 {comment.userEmail}
                                 {comment.isStaff && (
-                                  <span className="ml-2 text-xs text-blue-600">Staff</span>
+                                  <span className="ml-2 text-xs text-blue-600">
+                                    Staff
+                                  </span>
                                 )}
                               </p>
                               <p className="text-xs text-muted-foreground">
@@ -306,7 +347,7 @@ export function SupportTickets() {
                     </div>
 
                     {/* Add Comment Form */}
-                    {ticket.status !== 'closed' && (
+                    {ticket.status !== "closed" && (
                       <div className="flex gap-2">
                         <Input
                           placeholder="Add a comment..."
@@ -327,4 +368,4 @@ export function SupportTickets() {
       </div>
     </Card>
   );
-} 
+}

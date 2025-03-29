@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import crypto from 'crypto';
+import crypto from "crypto";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
@@ -10,9 +10,12 @@ export async function POST(req: Request) {
     const merchantSecret = process.env.PAYHERE_SECRET;
 
     if (!merchantId || !merchantSecret) {
-      console.error('Missing PayHere credentials:', { merchantId, merchantSecret });
+      console.error("Missing PayHere credentials:", {
+        merchantId,
+        merchantSecret,
+      });
       return NextResponse.json(
-        { error: 'PayHere credentials are not configured' },
+        { error: "PayHere credentials are not configured" },
         { status: 500 }
       );
     }
@@ -38,31 +41,44 @@ export async function POST(req: Request) {
       platform: "web",
       custom_1: data.plan,
       custom_2: data.orderId,
-      hash: ''
+      hash: "",
     };
 
     // Generate hash - using exact order as per PayHere docs
+    const hashedSecret = crypto
+      .createHash("md5")
+      .update(merchantSecret)
+      .digest("hex")
+      .toUpperCase();
+
+    const amountFormatted = parseFloat(formData.amount)
+      .toLocaleString("en-us", { minimumFractionDigits: 2 })
+      .replaceAll(",", "");
+
     const orderedData = [
       merchantId,
       formData.order_id,
-      formData.amount,
+      amountFormatted,
       formData.currency,
-      merchantSecret
-    ].join('');
+      hashedSecret,
+    ].join("");
 
-    // Convert hash to uppercase as required by PayHere
-    formData.hash = crypto.createHash('md5').update(orderedData).digest('hex').toUpperCase();
+    formData.hash = crypto
+      .createHash("md5")
+      .update(orderedData)
+      .digest("hex")
+      .toUpperCase();
 
-    console.log('Generated hash:', formData.hash);
-    console.log('Hash input:', orderedData);
-    console.log('Form data:', formData);
+    console.log("Generated hash:", formData.hash);
+    console.log("Hash input:", orderedData);
+    console.log("Form data:", formData);
 
     return NextResponse.json(formData);
   } catch (error) {
-    console.error('Payment creation error:', error);
+    console.error("Payment creation error:", error);
     return NextResponse.json(
-      { error: 'Failed to create payment' },
+      { error: "Failed to create payment" },
       { status: 500 }
     );
   }
-} 
+}

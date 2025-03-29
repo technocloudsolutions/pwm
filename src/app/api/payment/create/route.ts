@@ -45,15 +45,24 @@ export async function POST(req: Request) {
     };
 
     // Generate hash - using exact order as per PayHere docs
+    const hashedSecret = crypto
+      .createHash("md5")
+      .update(merchantSecret)
+      .digest("hex")
+      .toUpperCase();
+
+    const amountFormatted = parseFloat(formData.amount)
+      .toLocaleString("en-us", { minimumFractionDigits: 2 })
+      .replaceAll(",", "");
+
     const orderedData = [
       merchantId,
       formData.order_id,
-      formData.amount,
+      amountFormatted,
       formData.currency,
-      merchantSecret,
+      hashedSecret,
     ].join("");
 
-    // Convert hash to uppercase as required by PayHere
     formData.hash = crypto
       .createHash("md5")
       .update(orderedData)

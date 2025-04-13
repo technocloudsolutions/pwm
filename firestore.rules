@@ -32,7 +32,13 @@ service cloud.firestore {
 
     function isSubscriptionValid() {
       let userDoc = getUserDoc();
-      return isAdmin() || isSuperAdmin() || true;
+      return isAdmin() || isSuperAdmin() || (userDoc != null && userDoc.data.subscription != null);
+    }
+
+    function canSharePasswords() {
+      let userDoc = getUserDoc();
+      return isAdmin() || isSuperAdmin() || (userDoc != null && 
+        (userDoc.data.subscription == 'premium' || userDoc.data.subscription == 'business'));
     }
 
     function hasValidAccess() {
@@ -135,7 +141,7 @@ service cloud.firestore {
     
     // Branding Settings Logs collection
     match /branding_settings/{logId} {
-      allow read: if isAdmin() || isSuperAdmin();
+      allow read: if true;
       allow create: if isAdmin() || isSuperAdmin();
       allow update: if isAdmin() || isSuperAdmin();
       allow delete: if isAdmin() || isSuperAdmin();
@@ -146,21 +152,21 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         isAdmin() || 
         isSuperAdmin() || 
-        (hasValidAccess() && (
+        (
           resource.data.sharedBy == request.auth.uid || 
           resource.data.sharedWith == request.auth.uid
-        ))
+        )
       );
       allow create: if isSignedIn() && (
         isAdmin() || 
         isSuperAdmin() || 
-        (hasValidAccess() && request.resource.data.sharedBy == request.auth.uid)
+        (hasValidAccess() && canSharePasswords() && request.resource.data.sharedBy == request.auth.uid)
       );
       allow update: if isAdmin() || isSuperAdmin() || (
-        hasValidAccess() && resource.data.sharedBy == request.auth.uid
+        hasValidAccess() && canSharePasswords() && resource.data.sharedBy == request.auth.uid
       );
       allow delete: if isAdmin() || isSuperAdmin() || (
-        hasValidAccess() && resource.data.sharedBy == request.auth.uid
+        hasValidAccess() && canSharePasswords() && resource.data.sharedBy == request.auth.uid
       );
     }
 

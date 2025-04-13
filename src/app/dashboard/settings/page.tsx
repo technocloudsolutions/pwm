@@ -70,7 +70,7 @@ export default function SettingsPage() {
         </TabsContent> */}
 
         <TabsContent value="password-sharing">
-          {subscription === "premium" || subscription === "business" ? (
+          {subscription.toLocaleLowerCase() !== "free" ? (
             <PasswordSharing />
           ) : (
             <div className="text-center py-6">

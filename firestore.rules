@@ -93,8 +93,8 @@ service cloud.firestore {
 
     // Passwords collection
     match /passwords/{passwordId} {
-      allow read: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);
-      allow create: if hasValidAccess() && 
+      allow read: if isAdmin() || isSuperAdmin() || (resource.data.userId == request.auth.uid);
+      allow create: if 
         request.resource.data.userId == request.auth.uid && 
         request.resource.data.keys().hasAll(['title', 'username', 'password', 'userId', 'createdAt']);
       allow update: if isAdmin() || isSuperAdmin() || (hasValidAccess() && resource.data.userId == request.auth.uid);

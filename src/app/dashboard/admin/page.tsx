@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    if (!isAdmin) {
+    if (!isSuperAdmin && !isAdmin) {
       redirect("/dashboard");
       return;
     }
@@ -406,7 +406,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (!user || !isAdmin) {
+  if (!user || (!isAdmin && !isSuperAdmin)) {
     return (
       <div className="container mx-auto p-6">
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg">

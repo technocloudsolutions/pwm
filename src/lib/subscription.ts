@@ -123,6 +123,19 @@ export async function isUserAdmin(user: User): Promise<boolean> {
   }
 }
 
+export async function isUserSuperAdmin(user: User): Promise<boolean> {
+  if (!user) return false;
+
+  try {
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (!userDoc.exists()) return false;
+    return userDoc.data().role === "superAdmin";
+  } catch (error) {
+    console.error("Error checking super admin status:", error);
+    return false;
+  }
+}
+
 export function getSubscriptionFeatures(
   tier: SubscriptionTier
 ): SubscriptionFeatures {
@@ -203,8 +216,9 @@ export async function hasFeature(
   feature: BooleanFeatures
 ): Promise<boolean> {
   // Always allow access if user is admin
+  const isSuperAdmin = await isUserSuperAdmin(user);
   const isAdmin = await isUserAdmin(user);
-  if (isAdmin) return true;
+  if (isSuperAdmin || isAdmin) return true;
 
   // Check if account is suspended
   const status = await getSubscriptionStatus(user);

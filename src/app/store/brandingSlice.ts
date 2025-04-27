@@ -13,7 +13,7 @@ interface BrandingState {
 
 const initialState: BrandingState = {
   primaryColor: "#000000",
-  secondaryColor: "#ffffff",
+  secondaryColor: "#000000",
   accentColor: "#0070f3",
   logo: "/logo.svg",
   companyName: "BIGTIFY PASS",
